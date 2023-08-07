@@ -1,0 +1,128 @@
+import { useState, useEffect } from 'react';
+import { StyleSheet, View, ScrollView, LayoutAnimation } from 'react-native';
+import { useDatabase } from '../../database';
+import date_to_int from '../../date';
+import { colors } from '../../variables';
+
+import RoutineBubble from './RoutineBubble';
+import Title from '../../components/Title/Title';
+import TextInputModal from '../../components/TextInputModal/TextInputModal';
+
+
+
+export default function Routines({ navigation }: any) {
+  const db = useDatabase();
+  const [routines, setRoutines] = useState<object[]>([]); 
+  const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
+  const [addErrorMsg, setAddErrorMsg] = useState<string>('');
+
+  const updateRoutines = () => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        `SELECT * FROM routines ORDER BY position ASC;`,
+        [],
+        (_, { rows: { _array } }) => setRoutines(_array)
+      );
+    })
+  };
+
+  // Get routines from database
+  useEffect(() => {
+    updateRoutines();
+  }, []);
+
+  // Add routine stuff
+  const handleOpenModal = () => {
+    setAddModalVisible(true);
+  };
+
+  const handleCancelModal = () => {
+    setAddModalVisible(false);
+    setAddErrorMsg('');
+  };
+
+  const handleConfirmModal = (text: string) => {
+    if (text === '') {
+      setAddErrorMsg('New routine must be given a name');
+    }
+    else {
+      // get number of routines
+      db.transaction((tx) => {
+        tx.executeSql(
+          `SELECT COUNT(*) FROM routines;`,
+          [],
+          (_, { rows: { _array } }) => {
+            const num_routines = _array[0]['COUNT(*)'];
+            tx.executeSql(
+              `INSERT INTO routines (position, name) VALUES (?, ?);`,
+              [num_routines, text]
+            );
+          }
+        )
+      });
+      updateRoutines();
+      setAddModalVisible(false);
+      setAddErrorMsg('');
+    }
+  }
+
+  // Unhide all routines
+  const handleUnhideAll = () => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        `UPDATE routines SET hidden = 0;`,
+        []
+      );
+    })
+    updateRoutines();
+  }
+
+  return (
+    <>
+      <TextInputModal
+        visible={addModalVisible}
+        msg='Routine Name'
+        handleCancel={handleCancelModal}
+        handleConfirm={handleConfirmModal}
+        errorMsg={addErrorMsg}
+      ></TextInputModal>
+
+      <View style={{flex: 1, backgroundColor: colors.background_grey}}>
+        <Title
+          title="Routines"
+          onPressAdd={handleOpenModal}
+          buttons={[
+            {
+              label: 'Unhide All',
+              onPress: handleUnhideAll
+            },
+          ]}
+        />
+        <ScrollView contentContainerStyle={styles.routine_bubbles}>
+          {routines.map((routine: any) => {
+            if (routine.hidden === date_to_int(new Date())) {
+              return null;
+            }
+            return <RoutineBubble
+              name={routine.name}
+              id={routine.id}
+              position={routine.position}
+              key={routine.id}
+              onChange={updateRoutines}
+              navigation={navigation}
+            />
+          })}
+        </ScrollView>
+      </View>
+    </>
+  )
+}
+
+const styles = StyleSheet.create({
+    routine_bubbles: {
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      padding: 15,
+      gap: 8,
+    },
+  });
