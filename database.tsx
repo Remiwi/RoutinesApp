@@ -36,8 +36,8 @@ export const DatabaseProvider: FC<DatabaseProviderProps> = ({children}) => {
 
 export const useDatabase = () => {
     const database = useContext(DatabaseContext);
-    if (!db) {
+    if (!database) {
         throw new Error('useDatabase must be used within a DatabaseProvider');
     }
-    return db;
+    return database;
 }

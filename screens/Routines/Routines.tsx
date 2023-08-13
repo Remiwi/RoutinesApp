@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, LayoutAnimation } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
 import { useDatabase } from '../../database';
+import { DragAndDropProvider, useDragAndDrop } from '../../components/DragAndDrop/DragAndDrop';
 import date_to_int from '../../date';
 import { colors } from '../../variables';
 
@@ -8,19 +9,34 @@ import RoutineBubble from './RoutineBubble';
 import Title from '../../components/Title/Title';
 import TextInputModal from '../../components/TextInputModal/TextInputModal';
 
-
-
 export default function Routines({ navigation }: any) {
+  return (
+    <DragAndDropProvider>
+      <RoutinesWithContext navigation={navigation}/>
+    </DragAndDropProvider>
+  )
+}
+
+function RoutinesWithContext({ navigation }: any) {
   const db = useDatabase();
+
   const [routines, setRoutines] = useState<object[]>([]); 
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
   const [addErrorMsg, setAddErrorMsg] = useState<string>('');
+  const {scrollEnabled} = useDragAndDrop();
+
+  const { orderedIDs } = useDragAndDrop();
+  useEffect(() => {
+    // Set to the ids of the routines that are not hidden
+    orderedIDs.current = routines.filter((routine: any) => routine.hidden !== date_to_int(new Date())).map((routine: any) => routine.id);
+  }, [routines]);
 
   const updateRoutines = () => {
+    const date = date_to_int(new Date());
     db.transaction((tx) => {
       tx.executeSql(
-        `SELECT * FROM routines ORDER BY position ASC;`,
-        [],
+        `SELECT * FROM routines WHERE hidden != ? ORDER BY position ASC;`,
+        [date],
         (_, { rows: { _array } }) => setRoutines(_array)
       );
     })
@@ -98,15 +114,18 @@ export default function Routines({ navigation }: any) {
             },
           ]}
         />
-        <ScrollView contentContainerStyle={styles.routine_bubbles}>
-          {routines.map((routine: any) => {
+        <ScrollView
+          contentContainerStyle={styles.routine_bubbles}
+          scrollEnabled={scrollEnabled}
+        >
+          {routines.map((routine: any, index: number) => {
             if (routine.hidden === date_to_int(new Date())) {
               return null;
             }
             return <RoutineBubble
               name={routine.name}
               id={routine.id}
-              position={routine.position}
+              scrollIndex={index}
               key={routine.id}
               onChange={updateRoutines}
               navigation={navigation}

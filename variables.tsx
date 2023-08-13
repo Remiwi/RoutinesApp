@@ -2,6 +2,7 @@ export const colors = {
     blue: "#A8C7FA",
     background_grey: "#1F1F1F",
     bubble_grey: "#28282A",
+    bubble_highlighted_grey: "#38383A",
     grey: "#8F8F8F",
     dim_grey: "#C4C7C5",
     away_grey: "#464646",

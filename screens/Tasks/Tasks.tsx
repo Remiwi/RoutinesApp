@@ -14,7 +14,7 @@ export default function Tasks({ route, navigation }: any) {
     const [loading, setLoading] = useState<boolean>(true);
     const [days, setDays] = useState<React.ReactNode[]>([]);
     const [activeDay, setActiveDay] = useState<number>(0); // 0 = today, 1 = yesterday, etc
-    const scrollEnabled = useRef(true).current;
+    const scrollEnabled = useRef(true);
 
     useEffect(() => {
         setTimeout(() => {
@@ -50,7 +50,7 @@ export default function Tasks({ route, navigation }: any) {
                     {days}
                 </View>
             </View>
-            <ScrollView contentContainerStyle={styles.task_bubbles} scrollEnabled={scrollEnabled}>
+            <ScrollView contentContainerStyle={styles.task_bubbles} scrollEnabled={scrollEnabled.current}>
                 {tasks}
             </ScrollView>
         </View>
@@ -59,7 +59,7 @@ export default function Tasks({ route, navigation }: any) {
 
 type TaskProps = {
     task_name: string,
-    scrollRef: boolean,
+    scrollRef: React.MutableRefObject<boolean>,
 }
 
 function Task({task_name, scrollRef}: TaskProps) {
@@ -69,13 +69,11 @@ function Task({task_name, scrollRef}: TaskProps) {
             onMoveShouldSetPanResponder: (_, gestureState) => {
                 return Math.abs(gestureState.dx) > 50;
             },
-            onPanResponderGrant: () => { scrollRef = false; },
+            onPanResponderGrant: () => { scrollRef.current = false; },
             onPanResponderMove: Animated.event([null, {dx: pan.x, dy: pan.y}], {useNativeDriver: false}),
-            onPanResponderRelease: () => {
+            onPanResponderEnd: () => {
                 Animated.spring(pan, {toValue: {x: 0, y: 0}, useNativeDriver: true}).start();
-                console.log(scrollRef);
-                scrollRef = true;
-                console.log(scrollRef);
+                scrollRef.current = true;
             }
         })
     ).current;
