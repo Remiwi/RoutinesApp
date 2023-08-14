@@ -11,6 +11,7 @@ type DragAndDropData = {
 
   scrollHeight: React.MutableRefObject<number>;
   maxScrollHeight: React.MutableRefObject<number>;
+  scrollViewWindowHeight: React.MutableRefObject<number>;
   updateEdgeScrolling: (y: number) => void;
   touchHeightStart: React.MutableRefObject<number>;
 
@@ -34,15 +35,21 @@ export function DragAndDropProvider({ children }: any) {
 
   const scrollDir = useRef<number>(0);
   const scrollHeight = useRef<number>(0);
+  const scrollViewWindowHeight = useRef<number>(0);
   const maxScrollHeight = useRef<number>(500);
   const touchHeightStart = useRef<number>(0);
   const updateEdgeScrolling = (y: number) => {
-    const speed = 8;
-    if (y <= 100) {
-      scrollDir.current = -speed;
+    const upperThreshold = 150;
+    const lowerThreshold = scrollViewWindowHeight.current;
+
+    const speed = 20;
+    if (y <= upperThreshold) {
+      const ratio = Math.min((upperThreshold - y) / upperThreshold, 1);
+      scrollDir.current = -speed * ratio;
     }
-    else if (y >= 650) {
-      scrollDir.current = speed;
+    else if (y >= lowerThreshold) {
+      const ratio = Math.min((y - lowerThreshold) / 100, 1);
+      scrollDir.current = speed * ratio;
     }
     else {
       scrollDir.current = 0
@@ -96,6 +103,7 @@ export function DragAndDropProvider({ children }: any) {
       updateEdgeScrolling: updateEdgeScrolling,
       scrollHeight: scrollHeight,
       maxScrollHeight: maxScrollHeight,
+      scrollViewWindowHeight: scrollViewWindowHeight,
 
       touchHeightStart: touchHeightStart,
  

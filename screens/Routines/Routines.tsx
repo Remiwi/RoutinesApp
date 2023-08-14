@@ -26,8 +26,7 @@ function RoutinesWithContext({ navigation }: any) {
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
   const [addErrorMsg, setAddErrorMsg] = useState<string>('');
   // Drag and Drop
-  const { scrollEnabled, scrollRef, scrollHeight, maxScrollHeight, orderedIDs } = useDragAndDrop();
-  const scrollViewHeight = useRef<number>(0);
+  const { scrollEnabled, scrollRef, scrollHeight, maxScrollHeight, scrollViewWindowHeight, orderedIDs } = useDragAndDrop();
   const scrollViewDepth = useRef<number>(0);
 
   useEffect(() => {
@@ -127,14 +126,14 @@ function RoutinesWithContext({ navigation }: any) {
               scrollHeight.current = e.nativeEvent.contentOffset.y;
           }}
           onLayout={e => {
-            scrollViewHeight.current = e.nativeEvent.layout.height;
+            scrollViewWindowHeight.current = e.nativeEvent.layout.height;
 
-            maxScrollHeight.current = scrollViewDepth.current - scrollViewHeight.current;
+            maxScrollHeight.current = scrollViewDepth.current - scrollViewWindowHeight.current;
           }}
           onContentSizeChange={(_, h) => {
             scrollViewDepth.current = h;
 
-            maxScrollHeight.current = scrollViewDepth.current - scrollViewHeight.current;
+            maxScrollHeight.current = scrollViewDepth.current - scrollViewWindowHeight.current;
           }}
         >
           {routines.map((routine: any, index: number) => {
