@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, StatusBar, Dimensions} from 'react-native';
-import * as Font from 'expo-font';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, StatusBar, Dimensions, Text } from 'react-native';
+import { useFonts } from 'expo-font';
 import { DatabaseProvider } from './database';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -29,20 +29,15 @@ const MyDarkTheme = {
 
 export default function App() {
   // Load fonts
-  const [fontLoaded, setFontLoaded] = useState(false);
-  useEffect(() => {
-    const loadFont = async () => {
-      await Font.loadAsync({
-        'notoSansRegular': require('./assets/fonts/NotoSans-Regular.ttf'),
-      });
-      setFontLoaded(true);
-    };
-    loadFont();
-  }, []);
+  // Sometimes when loading the fonts, they never load, leaving the app as a blank screen. Clearing the cache seems to fix this.
+  // TODO: Figure out why this happens, whether or not it can happen in production, and how to fix it.
+  const [fontsLoaded, error] = useFonts({
+    'notoSansRegular': require('./assets/fonts/NotoSans-Regular.ttf'),
+  });
 
-  if (!fontLoaded) {
-    return null; // You can return a loader or placeholder here while the font is loading
-  }
+  if (!fontsLoaded)
+    return null
+  
   return (
     <View style={{flex: 1, backgroundColor: colors.background_grey}}>
       <DatabaseProvider>

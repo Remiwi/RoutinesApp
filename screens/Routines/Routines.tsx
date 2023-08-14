@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, ScrollView } from 'react-native';
 import { useDatabase } from '../../database';
 import { DragAndDropProvider, useDragAndDrop } from '../../components/DragAndDrop/DragAndDrop';
@@ -18,14 +18,18 @@ export default function Routines({ navigation }: any) {
 }
 
 function RoutinesWithContext({ navigation }: any) {
+  // Database
   const db = useDatabase();
-
+  // DOM State
   const [routines, setRoutines] = useState<object[]>([]); 
+  // Modals
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
   const [addErrorMsg, setAddErrorMsg] = useState<string>('');
-  const {scrollEnabled} = useDragAndDrop();
+  // Drag and Drop
+  const { scrollEnabled, scrollRef, scrollHeight, maxScrollHeight, orderedIDs } = useDragAndDrop();
+  const scrollViewHeight = useRef<number>(0);
+  const scrollViewDepth = useRef<number>(0);
 
-  const { orderedIDs } = useDragAndDrop();
   useEffect(() => {
     // Set to the ids of the routines that are not hidden
     orderedIDs.current = routines.filter((routine: any) => routine.hidden !== date_to_int(new Date())).map((routine: any) => routine.id);
@@ -115,8 +119,23 @@ function RoutinesWithContext({ navigation }: any) {
           ]}
         />
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.routine_bubbles}
           scrollEnabled={scrollEnabled}
+          onScroll={e => {
+            if (scrollEnabled) // When scroll is disbled, the updating of this value should be left to the drag and drop
+              scrollHeight.current = e.nativeEvent.contentOffset.y;
+          }}
+          onLayout={e => {
+            scrollViewHeight.current = e.nativeEvent.layout.height;
+
+            maxScrollHeight.current = scrollViewDepth.current - scrollViewHeight.current;
+          }}
+          onContentSizeChange={(_, h) => {
+            scrollViewDepth.current = h;
+
+            maxScrollHeight.current = scrollViewDepth.current - scrollViewHeight.current;
+          }}
         >
           {routines.map((routine: any, index: number) => {
             if (routine.hidden === date_to_int(new Date())) {

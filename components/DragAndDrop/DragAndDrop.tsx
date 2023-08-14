@@ -1,11 +1,18 @@
-import React, { createContext, useContext, useRef } from 'react';
+import React, { createContext, useContext, useRef, useEffect } from 'react';
+import { ScrollView } from 'react-native';
 
 type DragAndDropListener = (startIndex: number, prevIndex: number, currentIndex: number) => void;
 
 type DragAndDropData = {
   scrollEnabled: boolean;
-  setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>; 
+  setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  scrollRef: React.MutableRefObject<ScrollView|null>;
   orderedIDs: React.MutableRefObject<any[]>;
+
+  scrollHeight: React.MutableRefObject<number>;
+  maxScrollHeight: React.MutableRefObject<number>;
+  updateEdgeScrolling: (y: number) => void;
+  touchHeightStart: React.MutableRefObject<number>;
 
   startIndex: React.MutableRefObject<number | null>;
   prevIndex: React.MutableRefObject<number | null>;
@@ -21,8 +28,40 @@ type DragAndDropData = {
 const DragAndDropContext = createContext<DragAndDropData | null>(null);
 
 export function DragAndDropProvider({ children }: any) {
-  const [scrollEnabled, setScrollEnabled] = React.useState<boolean>(true);
   const orderedIDs = useRef([]);
+  const [scrollEnabled, setScrollEnabled] = React.useState<boolean>(true);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollDir = useRef<number>(0);
+  const scrollHeight = useRef<number>(0);
+  const maxScrollHeight = useRef<number>(500);
+  const touchHeightStart = useRef<number>(0);
+  const updateEdgeScrolling = (y: number) => {
+    const speed = 8;
+    if (y <= 100) {
+      scrollDir.current = -speed;
+    }
+    else if (y >= 650) {
+      scrollDir.current = speed;
+    }
+    else {
+      scrollDir.current = 0
+    }
+  };
+
+  useEffect(() => {
+    const scrollByDir = () => {
+      if (scrollDir.current !== 0) {
+        const newScrollHeight = Math.min(maxScrollHeight.current, Math.max(0, scrollHeight.current + scrollDir.current)); // Keep scrollHeight within bounds
+        scrollHeight.current = newScrollHeight; // We update the scrollHeight reference here as well since ScrollView.onScroll isn't called as frequently. This makes animations smoother
+
+        scrollRef.current?.scrollTo({y: newScrollHeight, animated: false}); // Actually move the ScrollView
+      }
+      requestAnimationFrame(scrollByDir);
+    }
+    scrollByDir();
+  }, []);
+  
 
   const startIndex = useRef<number | null>(null);
   const prevIndex = useRef<number | null>(null);
@@ -51,8 +90,15 @@ export function DragAndDropProvider({ children }: any) {
     <DragAndDropContext.Provider value={{
       scrollEnabled: scrollEnabled,
       setScrollEnabled: setScrollEnabled,
+      scrollRef: scrollRef,
       orderedIDs: orderedIDs,
 
+      updateEdgeScrolling: updateEdgeScrolling,
+      scrollHeight: scrollHeight,
+      maxScrollHeight: maxScrollHeight,
+
+      touchHeightStart: touchHeightStart,
+ 
       startIndex: startIndex,
       prevIndex: prevIndex,
       currentIndex: currentIndex,
