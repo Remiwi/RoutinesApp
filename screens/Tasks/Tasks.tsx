@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Image, ScrollView, Animated, PanResponder, InteractionManager } from 'react-native';
+import { StyleSheet, Text, View, Image, Vibration, Animated, PanResponder, InteractionManager } from 'react-native';
 import { colors } from '../../variables';
 
 import Title from '../../components/Title/Title';
+import { DragAndDropScrollView, DragAndDropItem } from '../../components/DragAndDrop/DragAndDrop';
 
 const CIRCLE_EMPTY = require('../../assets/icons/circle_empty.png');
 const CIRCLE_HALF = require('../../assets/icons/circle_half.png');
@@ -10,18 +11,55 @@ const CIRCLE_FULL = require('../../assets/icons/circle_full.png');
 
 export default function Tasks({ route, navigation }: any) {
     const { routine_id, routine_name } = route.params;
+    const [taskData, setTaskData] = useState<any>([]);
     const [tasks, setTasks] = useState<React.ReactNode[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [days, setDays] = useState<React.ReactNode[]>([]);
     const [activeDay, setActiveDay] = useState<number>(0); // 0 = today, 1 = yesterday, etc
     const scrollEnabled = useRef(true);
 
+    const moveItems = (startIndex: number, endIndex: number) => {
+        if (startIndex === endIndex) return;
+
+        const new_names = [...taskData];
+
+        let reversed = false;
+        if (startIndex > endIndex) {
+            reversed = true;
+            new_names.reverse();
+            startIndex = new_names.length - 1 - startIndex;
+            endIndex = new_names.length - 1 - endIndex;
+        }
+
+        const [removed] = new_names.splice(startIndex, 1);
+        new_names.splice(endIndex, 0, removed);
+
+        if (reversed) {
+            new_names.reverse();
+        }
+
+        setTaskData(new_names);
+    }
+
     useEffect(() => {
+        const the_names: any[] = [];
+        for (let i = 0; i < 20; i++) {
+            the_names.push({name:'Task ' + i.toString(), id: i});
+        }
+        setTaskData(the_names);
+    }, [])
+
+    useEffect(() => {
+        taskData.forEach((task_data: any, index: number) => {
+            console.log(task_data.name, index);
+        })
+        console.log('---');
         setTimeout(() => {
             const the_tasks: React.ReactNode[] = [];
-            for (let i = 0; i < 20; i++) {
+
+            for (let i = 0; i < taskData.length; i++) {
                 the_tasks.push(
-                    <Task task_name={'Task ' + i.toString()} scrollRef={scrollEnabled} key={i}/>
+                    <Task task_name={taskData[i].name} scrollRef={scrollEnabled} index={i} onDragFinished={moveItems} key={taskData[i].id}/>
                 )
             }
             setTasks(the_tasks);
@@ -36,7 +74,7 @@ export default function Tasks({ route, navigation }: any) {
 
             setLoading(false);
         }, 0);
-    }, []);
+    }, [taskData]);
 
     if (loading) {
         return <></>
@@ -50,9 +88,14 @@ export default function Tasks({ route, navigation }: any) {
                     {days}
                 </View>
             </View>
-            <ScrollView contentContainerStyle={styles.task_bubbles} scrollEnabled={scrollEnabled.current}>
+            <DragAndDropScrollView
+                contentContainerStyle={styles.task_bubbles}
+                scrollEnabled={scrollEnabled.current}
+
+                itemGap={5}
+            >
                 {tasks}
-            </ScrollView>
+            </DragAndDropScrollView>
         </View>
     )
 }
@@ -60,9 +103,11 @@ export default function Tasks({ route, navigation }: any) {
 type TaskProps = {
     task_name: string,
     scrollRef: React.MutableRefObject<boolean>,
+    index: number
+    onDragFinished: (startIndex: number, endIndex: number) => void
 }
 
-function Task({task_name, scrollRef}: TaskProps) {
+function Task({task_name, scrollRef, onDragFinished, index}: TaskProps) {
     const pan: Animated.ValueXY = useRef(new Animated.ValueXY({x: 0, y: 0})).current;
 
     const panResponder = useRef(PanResponder.create({
@@ -79,20 +124,26 @@ function Task({task_name, scrollRef}: TaskProps) {
     ).current;
 
     return (
-        <Animated.View style={{transform: [{translateX: pan.x}]}} {...panResponder.panHandlers}>
-            <View style={styles.task}>
-                <Text style={styles.task_name}>{task_name}</Text>
-                <View style={styles.entries}>
-                    <Entry entry={'full'}/>
-                    <Entry entry={'half'}/>
-                    <Entry entry={'empty'}/>
-                    <Entry entry={'empty'}/>
-                    <Entry entry={'empty'}/>
-                    <Entry entry={'empty'}/>
-                    <Entry entry={'empty'}/>
+        <DragAndDropItem
+            itemIndex={index}
+            onDragStarted={() => {Vibration.vibrate(10);}}
+            onDragFinished={onDragFinished}
+        >
+            <Animated.View style={{transform: [{translateX: pan.x}]}} {...panResponder.panHandlers}>
+                <View style={styles.task}>
+                    <Text style={styles.task_name}>{task_name}</Text>
+                    <View style={styles.entries}>
+                        <Entry entry={'full'}/>
+                        <Entry entry={'half'}/>
+                        <Entry entry={'empty'}/>
+                        <Entry entry={'empty'}/>
+                        <Entry entry={'empty'}/>
+                        <Entry entry={'empty'}/>
+                        <Entry entry={'empty'}/>
+                    </View>
                 </View>
-            </View>
-        </Animated.View>
+            </Animated.View>
+        </DragAndDropItem>
     )
 }
 

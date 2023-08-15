@@ -1,99 +1,105 @@
 import { useState, useRef, useEffect } from 'react';
-import { TouchableWithoutFeedback, PanResponder, PanResponderInstance, Animated, Vibration } from 'react-native';
-import { useDatabase } from '../../database';
-import { useDragAndDrop } from '../../components/DragAndDrop/DragAndDrop';
-import { colors } from '../../variables';
+import { TouchableWithoutFeedback, PanResponder, PanResponderInstance, Animated, View } from 'react-native';
+import { useDragAndDrop } from './DragAndDropContext';
 
 type DragAndDropItemProps = {
   itemIndex: number,
-  onDragStarted?: () => void,
-  onDragFinished?: () => void,
+  onDragStarted?: (startIndex: number) => void,
+  onDragFinished: (startIndex: number, endIndex: number) => void,
 
   
-  contentContainerStyles: any[],
+  contentContainerStyle?: any,
+  contentContainerDraggingStyle?: any,
   children?: React.ReactNode,
 }
 
-export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinished, contentContainerStyles, children}: DragAndDropItemProps) {
+export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinished, contentContainerStyle, contentContainerDraggingStyle, children}: DragAndDropItemProps) {
   // Drag and drop stuff
   const dragCtx = useDragAndDrop();
   const trackingTouch = useRef<boolean>(false);
-  const [dragStyles, setDragStyles] = useState<boolean>(false);
-  const setDragging = (value: boolean) => { dragCtx.setScrollEnabled(!value); setDragStyles(value); trackingTouch.current = value; }
+  const panGranted = useRef<boolean>(false);
+  const [dragStylesEnabled, setDragStylesEnabled] = useState<boolean>(false);
+  const setDragging = (value: boolean) => { dragCtx.setScrollEnabled(!value); setDragStylesEnabled(value); trackingTouch.current = value; }
   // Bubble Offset
-  const touchScreenCoords = useRef({x: 0, y: 0});
-  const bubbleStyleCoords = useRef(new Animated.ValueXY()).current;
+  const touchScreenPos = useRef({x: 0, y: 0});
+  const bubbleStylePos = useRef(new Animated.ValueXY()).current;
   const draggingAnimationFrame = useRef<number|null>(0);
   const panResponderRef = useRef<PanResponderInstance|null>(null);
-  const [panResponderMade, setPanResponderMade] = useState<boolean>(false);
 
-  // All of this stuff is in some way based on the scrollIndex, so we need to update it when the scrollIndex changes
-  useEffect(() => {
-    // If the scrollIndex changed, then our previous coords are no longer valid
-    touchScreenCoords.current = {x: 0, y: 0};
-    bubbleStyleCoords.setValue({x: 0, y: 0});
+  // Updates the style coordinates of the bubble while it's being dragged, based on the screen pos of the touch and the current y value of the scrollview
+  // Animation is started below when this bubble is picked up, and stopped when the bubble is released.
+  const updateStyleCoords = () => {
+    const styleCoords = {
+      x: touchScreenPos.current.x,
+      y: touchScreenPos.current.y + (dragCtx.scrollDepth.current - dragCtx.touchHeightStart.current)
+    };
+    Animated.event([{
+      x: bubbleStylePos.x,
+      y: bubbleStylePos.y,
+    }], {useNativeDriver: false}, )(styleCoords);
+    draggingAnimationFrame.current = requestAnimationFrame(updateStyleCoords);
+  }
 
-    // Updates the style coordinates of the bubble while it's being dragged, based on the screen pos of the touch and the current y value of the scrollview
-    // Animation is started below when this bubble is picked up, and stopped when the bubble is released.
-    const updateStyleCoords = () => {
-      const styleCoords = {
-        x: touchScreenCoords.current.x,
-        y: touchScreenCoords.current.y + (dragCtx.scrollHeight.current - dragCtx.touchHeightStart.current)
-      };
-      Animated.event([{
-        x: bubbleStyleCoords.x,
-        y: bubbleStyleCoords.y,
-      }], {useNativeDriver: false}, )(styleCoords);
+  // Makes a new panResponder. This needs to happen at the start, and also when the item index changes, so having a function is useful
+  const remakePanResponder = () => PanResponder.create({
+    onMoveShouldSetPanResponder: () => trackingTouch.current,
+
+    onPanResponderGrant: () => {
+      dragCtx.startIndex.current = itemIndex;
+      dragCtx.prevIndex.current = itemIndex;
+      dragCtx.currentIndex.current = itemIndex;
+      dragCtx.touchHeightStart.current = dragCtx.scrollDepth.current;
       draggingAnimationFrame.current = requestAnimationFrame(updateStyleCoords);
-    }
+      panGranted.current = true;
+    },
 
-    // The panResponder will continue to use the old scrollIndex even after the rerender since it's stored in a reference, so we need to update it
-    panResponderRef.current = PanResponder.create({
-      onMoveShouldSetPanResponder: () => trackingTouch.current,
-  
-      onPanResponderGrant: () => {
-        dragCtx.startIndex.current = itemIndex;
-        dragCtx.prevIndex.current = itemIndex;
-        dragCtx.currentIndex.current = itemIndex;
-        dragCtx.touchHeightStart.current = dragCtx.scrollHeight.current;
-        draggingAnimationFrame.current = requestAnimationFrame(updateStyleCoords);
-      },
-  
-      onPanResponderMove: (e, gestureState) => {
-        // dragCtx is responsible for determining if the scrollView should be scrolled up/down depending on screen coordinates of touch
-        dragCtx.updateEdgeScrolling(gestureState.dy + gestureState.y0);
-        // Save screen coordinates of touch
-        touchScreenCoords.current = {x: gestureState.dx, y: gestureState.dy};
-      },
-  
-      onPanResponderEnd: () => {
-        setDragging(false);
-        dragCtx.updateEdgeScrolling(300);
-        cancelAnimationFrame(draggingAnimationFrame.current!);
-  
-        // When letting go, make bubble snap to the index it is closest to
-        // DB gets updated once this animation finishes, since by then all animations should be done.
-        Animated.timing(
-          bubbleStyleCoords,
-          {toValue: {x: 0, y: dragCtx.bubbleHeight.current * (dragCtx.currentIndex.current! - itemIndex)}, duration: 200, useNativeDriver: true}
-        ).start(onDragFinished);
-      },
-    });
-    // After the panResponder gets made, we need to rerender since the first render gets skipped (see below)
-    if (!panResponderMade)
-      setPanResponderMade(true);
+    onPanResponderMove: (e, gestureState) => {
+      // dragCtx is responsible for determining if the scrollView should be scrolled up/down depending on screen coordinates of touch
+      dragCtx.updateEdgeDivingVelocity(gestureState.dy + gestureState.y0);
+      // Save screen coordinates of touch
+      touchScreenPos.current = {x: gestureState.dx, y: gestureState.dy};
+    },
+
+    onPanResponderEnd: () => {
+      setDragging(false);
+      dragCtx.updateEdgeDivingVelocity(null);
+      cancelAnimationFrame(draggingAnimationFrame.current!);
+
+      // When letting go, make bubble snap to the index it is closest to
+      // DB gets updated once this animation finishes, since by then all animations should be done.
+      Animated.timing(
+        bubbleStylePos,
+        {toValue: {x: 0, y: dragCtx.draggedItemHeight.current * (dragCtx.currentIndex.current! - itemIndex)}, duration: dragCtx.droppingAnimationDuration, useNativeDriver: true}
+      ).start(() => {
+        onDragFinished(dragCtx.startIndex.current!, dragCtx.currentIndex.current!);
+      });
+    },
+  });
+
+  if (panResponderRef.current === null)
+    panResponderRef.current = remakePanResponder();
+
+
+  // All of this stuff is in some way based on the itemIndex, so we need to update it when the itemIndex changes
+  useEffect(() => {
+    // If the itemIndex changed, then our previous coords are no longer valid
+    touchScreenPos.current = {x: 0, y: 0};
+    bubbleStylePos.setValue({x: 0, y: 0});
+
+    // The panResponder will continue to use the old itemIndex even after the rerender since it's stored in a reference, so we need to update it
+    panResponderRef.current = remakePanResponder();
     
-    // The drag evasion logic is based on the scrollIndex, so the listener needs to be updated
-    const evasionListenerdId = dragCtx.addListener((startIndex: number, prevIndex: number, currentIndex: number) => {
+    // The drag evasion logic is based on the itemIndex, so the listener needs to be updated
+    const evasionListenerdId = dragCtx.indexBroadcast.addListener((startIndex: number, prevIndex: number, currentIndex: number) => {
       if (startIndex === itemIndex) { // This bubble is being dragged, so no need to evade
         return;
       }
 
       type MovementState = 'still' | 'avoiding_up' | 'avoiding_down' | 'returning';
 
-      const BubbleUp = () => Animated.timing(bubbleStyleCoords, {toValue: {x: 0, y: -dragCtx.bubbleHeight.current}, duration: 200, useNativeDriver: true}).start();
-      const BubbleReturn = () => Animated.timing(bubbleStyleCoords, {toValue: {x: 0, y: 0}, duration: 200, useNativeDriver: true}).start();
-      const BubbleDown = () => Animated.timing(bubbleStyleCoords, {toValue: {x: 0, y: dragCtx.bubbleHeight.current}, duration: 200, useNativeDriver: true}).start();
+      const BubbleUp = () => Animated.timing(bubbleStylePos, {toValue: {x: 0, y: -dragCtx.draggedItemHeight.current}, duration: dragCtx.evasionAnimationDuration, useNativeDriver: true}).start();
+      const BubbleReturn = () => Animated.timing(bubbleStylePos, {toValue: {x: 0, y: 0}, duration: dragCtx.evasionAnimationDuration, useNativeDriver: true}).start();
+      const BubbleDown = () => Animated.timing(bubbleStylePos, {toValue: {x: 0, y: dragCtx.draggedItemHeight.current}, duration: dragCtx.evasionAnimationDuration, useNativeDriver: true}).start();
 
       let movement: MovementState = 'still';
       if (startIndex < itemIndex && currentIndex >= itemIndex && !(prevIndex >= itemIndex)) // It started above me, but is now at/below me, and it wasn't there before
@@ -113,8 +119,8 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
         BubbleReturn();
     });
 
-    // Similarly, the listener for the index broadcaster wikll be out of date 
-    const indexBroadcasterListenerId = bubbleStyleCoords.y.addListener(({value}) => {
+    // Similarly, the listener for the index broadcaster will be out of date 
+    const indexBroadcasterListenerId = bubbleStylePos.y.addListener(({value}) => {
       // If this is the dragged bubble, the listener reads the value of the bubble offset, calculates the index it should snap to, and updates the indices in the dragCtx
       // Values will only be updated if the bubble is actaully being dragged
 
@@ -124,60 +130,56 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
       if (itemIndex !== dragCtx.startIndex.current!) return;
   
       // Calculate the index the bubble should snap to
-      const int_pos = Math.floor(value / (dragCtx.bubbleHeight.current));
+      const int_pos = Math.floor(value / (dragCtx.draggedItemHeight.current));
       const rel_idx = int_pos + (int_pos < 0 ? 1 : 0);
-      const idx = Math.max(0, Math.min(dragCtx.orderedIDs.current.length - 1, itemIndex + rel_idx));
+      const idx = Math.max(0, Math.min(dragCtx.numItems.current - 1, itemIndex + rel_idx));
   
       // Update the indices in the dragCtx if they have changed
       if (idx !== dragCtx.currentIndex.current) {
         dragCtx.prevIndex.current = dragCtx.currentIndex.current;
         dragCtx.currentIndex.current = idx;
         // Notify the other bubbles that the indices have changed, so they can update their offsets
-        dragCtx.notifyListeners();
+        dragCtx.indexBroadcast.notifyListeners();
       }
     });
 
     // The listeners need to be removed the next time this effect runs
     return () => {
-      dragCtx.removeListener(evasionListenerdId);
-      bubbleStyleCoords.y.removeListener(indexBroadcasterListenerId);
+      dragCtx.indexBroadcast.removeListener(evasionListenerdId);
+      bubbleStylePos.y.removeListener(indexBroadcasterListenerId);
     };
   },
   [itemIndex]);
-
-  // Wait until the pan responder has been made, then rerender, to ensure that the Animated.View doesn't get passed a null
-  if (!panResponderMade) {
-    return <></>;
-  }
   
   return (
     <>
     <Animated.View
       {...panResponderRef.current!.panHandlers}
-      style={contentContainerStyles.concat([
-        
+      style={[
+        contentContainerStyle,
+        dragStylesEnabled ? contentContainerDraggingStyle : {},
         {
-          transform: [{translateX: bubbleStyleCoords.x}, {translateY: bubbleStyleCoords.y}],
-          backgroundColor: dragStyles ? colors.bubble_highlighted_grey : colors.bubble_grey,
-          zIndex: dragStyles ? 1 : 0
-        }
-      ])}
-      onLayout={(event) => {
-        const { height } = event.nativeEvent.layout;
-        if (height + 8 < dragCtx.bubbleHeight.current) {
-          dragCtx.bubbleHeight.current = height + 8;
-        }
-      }}
+          transform: [{translateX: bubbleStylePos.x}, {translateY: bubbleStylePos.y}],
+        },
+      ]}
+      onLayout={(event) => dragCtx.draggedItemHeight.current = event.nativeEvent.layout.height + dragCtx.itemGap}
     >
       <TouchableWithoutFeedback
         onLongPress={() => {
           setDragging(true);
+          panGranted.current = false;
           if (onDragStarted !== undefined)
-            onDragStarted();
+            onDragStarted(itemIndex);
         }}
+        onPressOut={() => {
+          if (!panGranted.current)
+            setDragStylesEnabled(false);
+          }}
         style={{flex: 1}}
       >
-        {/* Children go here */}
+        <View style={{flex: 1}}>
+          {children}
+        </View>
       </TouchableWithoutFeedback>
     </Animated.View>
     </>
