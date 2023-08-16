@@ -6,6 +6,7 @@ type DragAndDropItemProps = {
   itemIndex: number,
   startDragRef: React.MutableRefObject<() => void>,
   onDragStarted?: (startIndex: number) => void,
+  onDragFinishing?: (startIndex: number, endIndex: number) => void,
   onDragFinished: (startIndex: number, endIndex: number) => void,
 
   contentContainerStyle?: any,
@@ -13,7 +14,7 @@ type DragAndDropItemProps = {
   children?: React.ReactNode,
 }
 
-export default function DragAndDropItem({itemIndex, startDragRef, onDragStarted, onDragFinished, contentContainerStyle, contentContainerStyleSelected, children}: DragAndDropItemProps) {
+export default function DragAndDropItem({itemIndex, startDragRef, onDragStarted, onDragFinishing, onDragFinished, contentContainerStyle, contentContainerStyleSelected, children}: DragAndDropItemProps) {
   // Drag and drop stuff
   const dragCtx = useDragAndDrop();
   const trackingTouch = useRef<boolean>(false);
@@ -68,6 +69,8 @@ export default function DragAndDropItem({itemIndex, startDragRef, onDragStarted,
       setDragging(false);
       dragCtx.updateEdgeDivingVelocity(null);
       cancelAnimationFrame(draggingAnimationFrame.current!);
+
+      onDragFinishing?.(dragCtx.startIndex.current!, dragCtx.currentIndex.current!);
 
       // When letting go, make bubble snap to the index it is closest to
       // DB gets updated once this animation finishes, since by then all animations should be done.
