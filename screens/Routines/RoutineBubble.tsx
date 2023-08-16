@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableNativeFeedback, TouchableWithoutFeedback, LayoutAnimation, PanResponder, PanResponderInstance, Animated, Vibration } from 'react-native';
+import { useState, useRef } from 'react';
+import { StyleSheet, Text, View, Image, TouchableNativeFeedback, TouchableWithoutFeedback, LayoutAnimation, Vibration } from 'react-native';
 import { useDatabase } from '../../database';
 import { colors } from '../../variables';
 import dateToInt from '../../date';
@@ -30,6 +30,8 @@ export default function RoutineBubble({name, id, index, onChange, onMove, naviga
   // Modal states
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  // Drag and Drop
+  const startDragRef = useRef<() => void>(() => {});
 
   const handleUpdateName = (text: string) => {
     if (text != '') {
@@ -95,65 +97,69 @@ export default function RoutineBubble({name, id, index, onChange, onMove, naviga
 
     <DragAndDropItem
       itemIndex={index}
-      onDragStarted={() => { Vibration.vibrate(10); }}
+      startDragRef={startDragRef}
       onDragFinished={onMove}
       contentContainerStyle={styles.container}
-      contentContainerDraggingStyle={{
-        backgroundColor: colors.bubble_highlighted_grey,
-        zIndex: 1
-      }}
+      contentContainerStyleSelected={styles.selected}
     >
-      <>
-      <View style={styles.mainContainer}>
-        {/* Top*/}
-        <View style={styles.top}>
-          <TouchableNativeFeedback onPress={() => setEditModalVisible(true)}>
-            <Text style={styles.title}>{routineName}</Text>
-          </TouchableNativeFeedback>
-          <View style={[styles.expand_button, {overflow: 'hidden'}]}>
-            <TouchableNativeFeedback onPress={() => {
-              LayoutAnimation.configureNext({
-                duration: 70,
-                update: {type: 'linear', property: 'scaleY', delay: 1},
-                create: {type: 'linear', property: 'opacity', delay: 51, duration: 1},
-                delete: {type: 'linear', property: 'opacity', duration: 1},
-              });
-              setBubbleExpanded(!bubbleExpanded);
-            }}>
-              <View style={[styles.expand_button, {top: (bubbleExpanded ? -1 : 1)}]}>
-                <Image source={bubbleExpanded ? require("../../assets/icons/chevron_up.png") : require("../../assets/icons/chevron_down.png")} style={styles.expand_icon}></Image>
-              </View>
+      <TouchableWithoutFeedback
+        style={{flex: 1}}
+        onLongPress={() => {
+          if (bubbleExpanded) return;
+          startDragRef.current();
+          Vibration.vibrate(10);
+        }}
+      >
+        <View style={styles.mainContainer}>
+          {/* Top*/}
+          <View style={styles.top}>
+            <TouchableNativeFeedback onPress={() => setEditModalVisible(true)}>
+              <Text style={styles.title}>{routineName}</Text>
             </TouchableNativeFeedback>
+            <View style={[styles.expand_button, {overflow: 'hidden'}]}>
+              <TouchableNativeFeedback onPress={() => {
+                LayoutAnimation.configureNext({
+                  duration: 70,
+                  update: {type: 'linear', property: 'scaleY', delay: 1},
+                  create: {type: 'linear', property: 'opacity', delay: 51, duration: 1},
+                  delete: {type: 'linear', property: 'opacity', duration: 1},
+                });
+                setBubbleExpanded(!bubbleExpanded);
+              }}>
+                <View style={[styles.expand_button, {top: (bubbleExpanded ? -1 : 1)}]}>
+                  <Image source={bubbleExpanded ? require("../../assets/icons/chevron_up.png") : require("../../assets/icons/chevron_down.png")} style={styles.expand_icon}></Image>
+                </View>
+              </TouchableNativeFeedback>
+            </View>
+          </View>
+          {/* Buttons */}
+          <View style={styles.buttons_container}>
+            <View style={{flex: 1, alignItems: 'baseline'}}>
+              <Button label={'Streak'} icon={null} color={colors.grey} style={{alignItems: 'center'}}></Button>
+            </View>
+            <Button
+              label={'Hide'}
+              icon={HIDE_ICON}
+              color={colors.grey}
+              style={{alignItems:'center'}}
+              onPress={handleHideRoutine}
+            />
+            <Button
+              label={'Open'}
+              icon={OPEN_ICON}
+              color={colors.blue}
+              style={{alignItems:'center'}}
+              onPress={handleOpenRoutine}
+            />
           </View>
         </View>
-        {/* Buttons */}
-        <View style={styles.buttons_container}>
-          <View style={{flex: 1, alignItems: 'baseline'}}>
-            <Button label={'Streak'} icon={null} color={colors.grey} style={{alignItems: 'center'}}></Button>
-          </View>
-          <Button
-            label={'Hide'}
-            icon={HIDE_ICON}
-            color={colors.grey}
-            style={{alignItems:'center'}}
-            onPress={handleHideRoutine}
-          />
-          <Button
-            label={'Open'}
-            icon={OPEN_ICON}
-            color={colors.blue}
-            style={{alignItems:'center'}}
-            onPress={handleOpenRoutine}
-          />
-        </View>
-      </View>
+      </TouchableWithoutFeedback>
       {/* Extra Buttons */
         bubbleExpanded &&
         <View style={styles.extraButtonsContainer}>
           <ExtraButton label={'Delete'} icon={require("../../assets/icons/trash.png")} onPress={() => setDeleteModalVisible(true)}></ExtraButton>
         </View>
       }
-      </>
     </DragAndDropItem>
     </>
   )
@@ -167,6 +173,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingTop: 15,
     paddingBottom: 5
+  },
+  selected: {
+    backgroundColor: colors.bubble_highlighted_grey,
+    zIndex: 1
   },
   mainContainer: {
     paddingLeft: 20,

@@ -13,7 +13,7 @@ export default function DragAndDropScrollView(props: ScrollViewProps) {
     <ScrollView
       {...props}
       ref={dragCtx.scrollRef}
-      scrollEnabled={dragCtx.scrollEnabled}
+      scrollEnabled={dragCtx.scrollEnabled && props.scrollEnabled}
       onScroll={e => {
         if (dragCtx.scrollEnabled) // When scroll is disbled, the updating of this value should be left to the drag and drop
         dragCtx.scrollDepth.current = e.nativeEvent.contentOffset.y;

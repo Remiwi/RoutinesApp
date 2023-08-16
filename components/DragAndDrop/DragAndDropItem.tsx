@@ -1,23 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { TouchableWithoutFeedback, PanResponder, PanResponderInstance, Animated, View } from 'react-native';
+import { PanResponder, PanResponderInstance, Animated } from 'react-native';
 import { useDragAndDrop } from './DragAndDropContext';
 
 type DragAndDropItemProps = {
   itemIndex: number,
+  startDragRef: React.MutableRefObject<() => void>,
   onDragStarted?: (startIndex: number) => void,
   onDragFinished: (startIndex: number, endIndex: number) => void,
 
-  
   contentContainerStyle?: any,
-  contentContainerDraggingStyle?: any,
+  contentContainerStyleSelected?: any,
   children?: React.ReactNode,
 }
 
-export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinished, contentContainerStyle, contentContainerDraggingStyle, children}: DragAndDropItemProps) {
+export default function DragAndDropItem({itemIndex, startDragRef, onDragStarted, onDragFinished, contentContainerStyle, contentContainerStyleSelected, children}: DragAndDropItemProps) {
   // Drag and drop stuff
   const dragCtx = useDragAndDrop();
   const trackingTouch = useRef<boolean>(false);
-  const panGranted = useRef<boolean>(false);
   const [dragStylesEnabled, setDragStylesEnabled] = useState<boolean>(false);
   const setDragging = (value: boolean) => { dragCtx.setScrollEnabled(!value); setDragStylesEnabled(value); trackingTouch.current = value; }
   // Bubble Offset
@@ -25,6 +24,9 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
   const bubbleStylePos = useRef(new Animated.ValueXY()).current;
   const draggingAnimationFrame = useRef<number|null>(0);
   const panResponderRef = useRef<PanResponderInstance|null>(null);
+
+  // Function should be called by user to indicate that this touch is for dragging the bubble
+  startDragRef.current = () => setDragging(true);
 
   // Updates the style coordinates of the bubble while it's being dragged, based on the screen pos of the touch and the current y value of the scrollview
   // Animation is started below when this bubble is picked up, and stopped when the bubble is released.
@@ -42,6 +44,7 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
 
   // Makes a new panResponder. This needs to happen at the start, and also when the item index changes, so having a function is useful
   const remakePanResponder = () => PanResponder.create({
+    onStartShouldSetPanResponder: () => trackingTouch.current,
     onMoveShouldSetPanResponder: () => trackingTouch.current,
 
     onPanResponderGrant: () => {
@@ -50,7 +53,8 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
       dragCtx.currentIndex.current = itemIndex;
       dragCtx.touchHeightStart.current = dragCtx.scrollDepth.current;
       draggingAnimationFrame.current = requestAnimationFrame(updateStyleCoords);
-      panGranted.current = true;
+      if (onDragStarted !== undefined)
+        onDragStarted(itemIndex);
     },
 
     onPanResponderMove: (e, gestureState) => {
@@ -157,30 +161,14 @@ export default function DragAndDropItem({itemIndex, onDragStarted, onDragFinishe
       {...panResponderRef.current!.panHandlers}
       style={[
         contentContainerStyle,
-        dragStylesEnabled ? contentContainerDraggingStyle : {},
+        dragStylesEnabled ? contentContainerStyleSelected : {},
         {
           transform: [{translateX: bubbleStylePos.x}, {translateY: bubbleStylePos.y}],
         },
       ]}
       onLayout={(event) => dragCtx.draggedItemHeight.current = event.nativeEvent.layout.height + dragCtx.itemGap}
     >
-      <TouchableWithoutFeedback
-        onLongPress={() => {
-          setDragging(true);
-          panGranted.current = false;
-          if (onDragStarted !== undefined)
-            onDragStarted(itemIndex);
-        }}
-        onPressOut={() => {
-          if (!panGranted.current)
-            setDragStylesEnabled(false);
-          }}
-        style={{flex: 1}}
-      >
-        <View style={{flex: 1}}>
-          {children}
-        </View>
-      </TouchableWithoutFeedback>
+      {children}
     </Animated.View>
     </>
   )
