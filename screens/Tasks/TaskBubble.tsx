@@ -11,28 +11,29 @@ const CIRCLE_FULL = require('../../assets/icons/circle_full.png');
 type TaskBubbleProps = {
   taskName: string,
   index: number
-  // scrollEnabled: React.MutableRefObject<boolean>,
+  setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>,
   onDragFinished: (startIndex: number, endIndex: number) => void
 }
 
-export default function TaskBubble({taskName, index, onDragFinished }: TaskBubbleProps) {
+export default function TaskBubble({taskName, index, setScrollEnabled, onDragFinished }: TaskBubbleProps) {
   // Sliding
   const slideOffset: Animated.Value = useRef(new Animated.Value(0)).current;
   const slideEnabled = useRef(true);
   // Drag and Drop
   const startDragRef = useRef<() => void>(() => {});
+  const [dragStylesEnabled, setDragStylesEnabled] = React.useState(false);
 
   const panResponderRef = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => {
       return Math.abs(gestureState.dx) > 50 && slideEnabled.current;
     },
     onPanResponderGrant: () => {
-      // scrollEnabled.current = false;
+      setScrollEnabled(false);
     },
     onPanResponderMove: Animated.event([null, {dx: slideOffset}], {useNativeDriver: false}),
     onPanResponderEnd: () => {
       Animated.spring(slideOffset, {toValue: 0, useNativeDriver: true}).start();
-      // scrollEnabled.current = true;
+      setScrollEnabled(true);
     }
   }));
 
@@ -40,16 +41,17 @@ export default function TaskBubble({taskName, index, onDragFinished }: TaskBubbl
     <DragAndDropItem
       itemIndex={index}
       startDragRef={startDragRef}
+      onDragFinishing={() => setDragStylesEnabled(false)}
       onDragFinished={(startIndex: number, endIndex: number) => {
         slideEnabled.current = true;
         onDragFinished(startIndex, endIndex);
       }}
-      contentContainerStyle={styles.taskContainer}
-      contentContainerStyleSelected={styles.taskContainerSelected}
+      contentContainerStyleSelected={{zIndex: 1}}
     >
       <Animated.View
         style={[
-          styles.taskContent,
+          styles.taskContainer,
+          dragStylesEnabled? styles.taskContainerSelected : {},
           {transform: [{translateX: slideOffset}]},
         ]}
         {...panResponderRef.current.panHandlers}
@@ -60,9 +62,10 @@ export default function TaskBubble({taskName, index, onDragFinished }: TaskBubbl
             startDragRef.current();
             Vibration.vibrate(10);
             slideEnabled.current = false;
+            setDragStylesEnabled(true);
           }}
         >
-          <View style={{flex: 1}}>
+          <View style={styles.taskContent}>
             <Text style={styles.taskName}>{taskName}</Text>
             <View style={styles.entriesContainer}>
               <Entry entry={'full'}/>

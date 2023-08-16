@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, } from 'react-native';
 import { colors } from '../../variables';
 
@@ -8,6 +8,9 @@ import TaskBubble from './TaskBubble';
 import Day from './TaskDay'
 
 export default function Tasks({ route, navigation }: any) {
+    // Scrollview
+    const [scrollEnabled, setScrollEnabled] = useState<boolean>(true);
+    //
     const { routine_id, routine_name } = route.params;
     const [taskData, setTaskData] = useState<any>([]);
     const [tasks, setTasks] = useState<React.ReactNode[]>([]);
@@ -52,7 +55,13 @@ export default function Tasks({ route, navigation }: any) {
 
             for (let i = 0; i < taskData.length; i++) {
                 the_tasks.push(
-                    <TaskBubble taskName={taskData[i].name} index={i} onDragFinished={moveItems} key={taskData[i].id}/>
+                    <TaskBubble
+                        taskName={taskData[i].name}
+                        index={i}
+                        setScrollEnabled={setScrollEnabled}
+                        onDragFinished={moveItems}
+                        key={taskData[i].id}
+                    />
                 )
             }
             setTasks(the_tasks);
@@ -85,7 +94,7 @@ export default function Tasks({ route, navigation }: any) {
                 contentContainerStyle={styles.task_bubbles}
 
                 itemGap={5}
-                scrollEnabled={false}
+                scrollEnabled={scrollEnabled}
             >
                 {tasks}
             </DragAndDropScrollView>
