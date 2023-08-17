@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { StyleSheet, View, Dimensions } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useDatabase } from "../../database";
 import date_to_int from "../../date";
 import { colors } from "../../variables";
@@ -18,12 +18,11 @@ export default function Routines({ navigation }: any) {
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
   const [addErrorMsg, setAddErrorMsg] = useState<string>("");
 
-  const updateRoutines = () => {
-    const date = date_to_int(new Date());
+  const updateRoutineData = () => {
     db.transaction((tx) => {
       tx.executeSql(
         `SELECT * FROM routines WHERE hidden != ? ORDER BY position ASC;`,
-        [date],
+        [date_to_int(new Date())],
         (_, { rows: { _array } }) => setRoutineData(_array)
       );
     });
@@ -31,20 +30,16 @@ export default function Routines({ navigation }: any) {
 
   // Get routines from database
   useEffect(() => {
-    updateRoutines();
+    updateRoutineData();
   }, []);
 
   // Add routine stuff
-  const handleOpenModal = () => {
-    setAddModalVisible(true);
-  };
-
-  const handleCancelModal = () => {
+  const handleAddCancel = () => {
     setAddModalVisible(false);
     setAddErrorMsg("");
   };
 
-  const handleConfirmModal = (text: string) => {
+  const handleAddConfirm = (text: string) => {
     if (text === "") {
       setAddErrorMsg("New routine must be given a name");
     } else {
@@ -62,7 +57,7 @@ export default function Routines({ navigation }: any) {
           }
         );
       });
-      updateRoutines();
+      updateRoutineData();
       setAddModalVisible(false);
       setAddErrorMsg("");
     }
@@ -73,12 +68,11 @@ export default function Routines({ navigation }: any) {
     db.transaction((tx) => {
       tx.executeSql(`UPDATE routines SET hidden = 0;`, []);
     });
-    updateRoutines();
+    updateRoutineData();
   };
 
-  // Function for updating the DB at the end of a drag
-  // Sets position of dragged bubble based on endIndex
-  // Sets position of all bubbles between the where the bubble was and where it is now (in terms of position, not just index)
+  // Moving bubbles after drag and drop
+  // Moves bubble at startIndex to endIndex, and bumps betweeners either up or down depending on, opposite the direction the dragged bubble went
   const moveBubbles = (startIndex: number, endIndex: number) => {
     if (startIndex === endIndex) return;
 
@@ -88,49 +82,29 @@ export default function Routines({ navigation }: any) {
 
     db.transaction(
       (tx) => {
-        // SQLite enforces UNIQUE in real time, so I have to do this stupid dance where I
-        //    - Set the position of the routine we moved to -1
-        //    - Set the position of the in-betweeners to ((final * -1) -2) (so they don't conflict with the routine we moved or the one at position 0)
-        //    - Set the position of the routine we moved to the actual position
-        //    - Set the position of the in-betweeners to their actual positions ((old + 2) * -1)
-        // This should ensure that at no point the UNIQUE constraint is violated, and that the final positions are correct, but god is this stupid.
-
-        // Moved routine goes to temp position
-        tx.executeSql(`UPDATE routines SET position = -1 WHERE id = ?;`, [
-          startId,
-        ]);
-
-        // In-betweeners go to temp positions
-        if (endPos < startPos) {
-          // endPos is above startPos, so move all routines between them down one
-          tx.executeSql(
-            `UPDATE routines SET position = ((position + 1) * -1) - 2 WHERE position >= ? AND position < ?;`,
-            [endPos, startPos]
-          );
-        } else {
-          // endPos is below startPos, so move all routines between them up one
-          tx.executeSql(
-            `UPDATE routines SET position = ((position - 1) * -1) - 2 WHERE position > ? AND position <= ?;`,
-            [startPos, endPos]
-          );
-        }
-
-        // Moved routine goes to final position
-        tx.executeSql(`UPDATE routines SET position = ? WHERE id = ?;`, [
-          endPos,
-          startId,
-        ]);
-
-        // In betweeners go to final positions
+        // Update positions
         tx.executeSql(
-          `UPDATE routines SET position = ((position + 2) * -1) WHERE position < 0;`,
+          `
+        UPDATE routines SET position = CASE
+            WHEN id = ? THEN ?
+            WHEN position BETWEEN ? AND ? THEN position - 1
+            WHEN position BETWEEN ? AND ? THEN position + 1
+            ELSE position
+          END;
+      `,
+          [startId, endPos, startPos + 1, endPos, endPos, startPos - 1]
+        );
+
+        // Update prev_positions. Effectively allows the UNIQUE(position, routine_id) to be enforced.
+        tx.executeSql(
+          `UPDATE routines SET prev_position = position WHERE prev_position != position;`,
           [],
-          () => {
-            updateRoutines();
-          }
+          () => updateRoutineData()
         );
       },
-      (error) => console.log(error)
+      (e) => {
+        console.log(e);
+      }
     );
   };
 
@@ -139,15 +113,15 @@ export default function Routines({ navigation }: any) {
       <TextInputModal
         visible={addModalVisible}
         msg="Routine Name"
-        handleCancel={handleCancelModal}
-        handleConfirm={handleConfirmModal}
+        handleCancel={handleAddCancel}
+        handleConfirm={handleAddConfirm}
         errorMsg={addErrorMsg}
       ></TextInputModal>
 
       <View style={{ flex: 1, backgroundColor: colors.background_grey }}>
         <Title
           title="Routines"
-          onPressAdd={handleOpenModal}
+          onPressAdd={() => setAddModalVisible(true)}
           buttons={[
             {
               label: "Unhide All",
@@ -171,7 +145,7 @@ export default function Routines({ navigation }: any) {
                 id={routine.id}
                 index={index}
                 key={routine.id}
-                onChange={updateRoutines}
+                onChange={updateRoutineData}
                 onMove={moveBubbles}
                 navigation={navigation}
               />
