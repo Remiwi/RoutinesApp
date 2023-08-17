@@ -10,7 +10,6 @@ type DragAndDropItemProps = {
   onDragFinished: (startIndex: number, endIndex: number) => void;
 
   contentContainerStyle?: any;
-  contentContainerStyleSelected?: any;
   children?: React.ReactNode;
 };
 
