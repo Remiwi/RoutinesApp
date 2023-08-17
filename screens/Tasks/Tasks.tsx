@@ -190,9 +190,9 @@ export default function Tasks({ route, navigation }: any) {
 const styles = StyleSheet.create({
   task_bubbles: {
     flexDirection: "column",
-    justifyContent: "space-between",
     padding: 5,
     gap: 5,
+    flexGrow: 1,
   },
 
   days_container: {
