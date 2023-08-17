@@ -10,6 +10,7 @@ type DragAndDropItemProps = {
   onDragFinished: (startIndex: number, endIndex: number) => void;
 
   contentContainerStyle?: any;
+  contentContainerStyleSelected?: any;
   children?: React.ReactNode;
 };
 
@@ -20,13 +21,16 @@ export default function DragAndDropItem({
   onDragFinishing,
   onDragFinished,
   contentContainerStyle,
+  contentContainerStyleSelected,
   children,
 }: DragAndDropItemProps) {
   // Drag and drop stuff
   const dragCtx = useDragAndDrop();
   const trackingTouch = useRef<boolean>(false);
+  const [dragStylesEnabled, setDragStylesEnabled] = useState<boolean>(false);
   const setDragging = (value: boolean) => {
     dragCtx.setScrollEnabled(!value);
+    setDragStylesEnabled(value);
     trackingTouch.current = value;
   };
   // Bubble Offset
@@ -235,6 +239,7 @@ export default function DragAndDropItem({
         {...panResponderRef.current!.panHandlers}
         style={[
           contentContainerStyle,
+          dragStylesEnabled ? contentContainerStyleSelected : {},
           {
             transform: [
               { translateX: bubbleStylePos.x },

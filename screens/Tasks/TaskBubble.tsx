@@ -35,6 +35,7 @@ export default function TaskBubble({
   const slideEnabled = useRef(true);
   // Drag and Drop
   const startDragRef = useRef<() => void>(() => {});
+  const dragOngoingRef = useRef(false);
   const [dragStylesEnabled, setDragStylesEnabled] = React.useState(false);
 
   const panResponderRef = useRef(
@@ -62,10 +63,12 @@ export default function TaskBubble({
     <DragAndDropItem
       itemIndex={index}
       startDragRef={startDragRef}
+      onDragStarted={() => (dragOngoingRef.current = true)}
       onDragFinishing={() => setDragStylesEnabled(false)}
       onDragFinished={(startIndex: number, endIndex: number) => {
         slideEnabled.current = true;
         onDragFinished(startIndex, endIndex);
+        dragOngoingRef.current = false;
       }}
       contentContainerStyleSelected={{ zIndex: 1 }}
     >
@@ -84,6 +87,11 @@ export default function TaskBubble({
             Vibration.vibrate(10);
             slideEnabled.current = false;
             setDragStylesEnabled(true);
+          }}
+          onPressOut={() => {
+            if (dragOngoingRef.current) return;
+            slideEnabled.current = true;
+            setDragStylesEnabled(false);
           }}
         >
           <View style={styles.taskContent}>
