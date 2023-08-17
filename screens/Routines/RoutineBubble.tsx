@@ -48,6 +48,8 @@ export default function RoutineBubble({
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
   // Drag and Drop
   const startDragRef = useRef<() => void>(() => {});
+  const dragOngoingRef = useRef(false);
+  const [dragStylesEnabled, setDragStylesEnabled] = useState(false);
 
   const handleUpdateName = (text: string) => {
     if (text != "") {
@@ -126,111 +128,126 @@ export default function RoutineBubble({
       <DragAndDropItem
         itemIndex={index}
         startDragRef={startDragRef}
+        onDragStarted={() => (dragOngoingRef.current = true)}
+        onDragFinishing={() => setDragStylesEnabled(false)}
         onDragFinished={onMove}
-        contentContainerStyle={styles.container}
-        contentContainerStyleSelected={styles.selected}
+        contentContainerStyleSelected={{ zIndex: 1 }}
       >
-        <TouchableWithoutFeedback
-          style={{ flex: 1 }}
-          onLongPress={() => {
-            if (bubbleExpanded) return;
-            startDragRef.current();
-            Vibration.vibrate(10);
-          }}
+        <View
+          style={[styles.content, dragStylesEnabled ? styles.selected : {}]}
         >
-          <View style={styles.mainContainer}>
-            {/* Top*/}
-            <View style={styles.top}>
-              <TouchableNativeFeedback
-                onPress={() => setEditModalVisible(true)}
-              >
-                <Text style={styles.title}>{routineName}</Text>
-              </TouchableNativeFeedback>
-              <View style={[styles.expand_button, { overflow: "hidden" }]}>
+          <TouchableWithoutFeedback
+            style={{ flex: 1 }}
+            onLongPress={() => {
+              if (bubbleExpanded) return;
+              startDragRef.current();
+              Vibration.vibrate(10);
+              setDragStylesEnabled(true);
+              dragOngoingRef.current = false;
+            }}
+            onPressOut={() => {
+              if (dragOngoingRef.current) return;
+              setDragStylesEnabled(false);
+            }}
+          >
+            <View style={styles.mainContainer}>
+              {/* Top*/}
+              <View style={styles.top}>
                 <TouchableNativeFeedback
-                  onPress={() => {
-                    LayoutAnimation.configureNext({
-                      duration: 70,
-                      update: { type: "linear", property: "scaleY", delay: 1 },
-                      create: {
-                        type: "linear",
-                        property: "opacity",
-                        delay: 51,
-                        duration: 1,
-                      },
-                      delete: {
-                        type: "linear",
-                        property: "opacity",
-                        duration: 1,
-                      },
-                    });
-                    setBubbleExpanded(!bubbleExpanded);
-                  }}
+                  onPress={() => setEditModalVisible(true)}
                 >
-                  <View
-                    style={[
-                      styles.expand_button,
-                      { top: bubbleExpanded ? -1 : 1 },
-                    ]}
-                  >
-                    <Image
-                      source={
-                        bubbleExpanded
-                          ? require("../../assets/icons/chevron_up.png")
-                          : require("../../assets/icons/chevron_down.png")
-                      }
-                      style={styles.expand_icon}
-                    ></Image>
-                  </View>
+                  <Text style={styles.title}>{routineName}</Text>
                 </TouchableNativeFeedback>
+                <View style={[styles.expand_button, { overflow: "hidden" }]}>
+                  <TouchableNativeFeedback
+                    onPress={() => {
+                      LayoutAnimation.configureNext({
+                        duration: 70,
+                        update: {
+                          type: "linear",
+                          property: "scaleY",
+                          delay: 1,
+                        },
+                        create: {
+                          type: "linear",
+                          property: "opacity",
+                          delay: 51,
+                          duration: 1,
+                        },
+                        delete: {
+                          type: "linear",
+                          property: "opacity",
+                          duration: 1,
+                        },
+                      });
+                      setBubbleExpanded(!bubbleExpanded);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.expand_button,
+                        { top: bubbleExpanded ? -1 : 1 },
+                      ]}
+                    >
+                      <Image
+                        source={
+                          bubbleExpanded
+                            ? require("../../assets/icons/chevron_up.png")
+                            : require("../../assets/icons/chevron_down.png")
+                        }
+                        style={styles.expand_icon}
+                      ></Image>
+                    </View>
+                  </TouchableNativeFeedback>
+                </View>
               </View>
-            </View>
-            {/* Buttons */}
-            <View style={styles.buttons_container}>
-              <View style={{ flex: 1, alignItems: "baseline" }}>
+              {/* Buttons */}
+              <View style={styles.buttons_container}>
+                <View style={{ flex: 1, alignItems: "baseline" }}>
+                  <Button
+                    label={"Streak"}
+                    icon={null}
+                    color={colors.grey}
+                    style={{ alignItems: "center" }}
+                  ></Button>
+                </View>
                 <Button
-                  label={"Streak"}
-                  icon={null}
+                  label={"Hide"}
+                  icon={HIDE_ICON}
                   color={colors.grey}
                   style={{ alignItems: "center" }}
-                ></Button>
+                  onPress={handleHideRoutine}
+                />
+                <Button
+                  label={"Open"}
+                  icon={OPEN_ICON}
+                  color={colors.blue}
+                  style={{ alignItems: "center" }}
+                  onPress={handleOpenRoutine}
+                />
               </View>
-              <Button
-                label={"Hide"}
-                icon={HIDE_ICON}
-                color={colors.grey}
-                style={{ alignItems: "center" }}
-                onPress={handleHideRoutine}
-              />
-              <Button
-                label={"Open"}
-                icon={OPEN_ICON}
-                color={colors.blue}
-                style={{ alignItems: "center" }}
-                onPress={handleOpenRoutine}
-              />
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-        {
-          /* Extra Buttons */
-          bubbleExpanded && (
-            <View style={styles.extraButtonsContainer}>
-              <ExtraButton
-                label={"Delete"}
-                icon={require("../../assets/icons/trash.png")}
-                onPress={() => setDeleteModalVisible(true)}
-              ></ExtraButton>
-            </View>
-          )
-        }
+          </TouchableWithoutFeedback>
+          {
+            /* Extra Buttons */
+            bubbleExpanded && (
+              <View style={styles.extraButtonsContainer}>
+                <ExtraButton
+                  label={"Delete"}
+                  icon={require("../../assets/icons/trash.png")}
+                  onPress={() => setDeleteModalVisible(true)}
+                ></ExtraButton>
+              </View>
+            )
+          }
+        </View>
       </DragAndDropItem>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  content: {
     backgroundColor: colors.bubble_grey,
     borderRadius: 26,
     paddingTop: 15,

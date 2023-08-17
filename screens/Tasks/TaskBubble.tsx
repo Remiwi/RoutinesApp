@@ -68,7 +68,6 @@ export default function TaskBubble({
       onDragFinished={(startIndex: number, endIndex: number) => {
         slideEnabled.current = true;
         onDragFinished(startIndex, endIndex);
-        dragOngoingRef.current = false;
       }}
       contentContainerStyleSelected={{ zIndex: 1 }}
     >
@@ -87,6 +86,7 @@ export default function TaskBubble({
             Vibration.vibrate(10);
             slideEnabled.current = false;
             setDragStylesEnabled(true);
+            dragOngoingRef.current = false;
           }}
           onPressOut={() => {
             if (dragOngoingRef.current) return;
