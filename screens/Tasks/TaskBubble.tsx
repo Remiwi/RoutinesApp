@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -30,18 +30,68 @@ export default function TaskBubble({
   setScrollEnabled,
   onDragFinished,
 }: TaskBubbleProps) {
-  // Sliding
-  const slideOffset: Animated.Value = useRef(new Animated.Value(0)).current;
-  const slideEnabled = useRef(true);
   // Drag and Drop
   const startDragRef = useRef<() => void>(() => {});
   const dragOngoingRef = useRef(false);
-  const [dragStylesEnabled, setDragStylesEnabled] = React.useState(false);
+  const setDragStylesEnabledRef = useRef<(enabled: boolean) => void>(() => {});
+
+  return (
+    <DragAndDropItem
+      itemIndex={index}
+      startDragRef={startDragRef}
+      onDragStarted={() => {
+        dragOngoingRef.current = true;
+      }}
+      onDragFinishing={() => {
+        dragOngoingRef.current = false;
+        setDragStylesEnabledRef.current(false);
+      }}
+      onDragFinished={onDragFinished}
+      contentContainerStyleSelected={{ zIndex: 1 }}
+    >
+      <SlideableBubble
+        taskName={taskName}
+        startDragRef={startDragRef}
+        dragOngoingRef={dragOngoingRef}
+        setScrollEnabled={setScrollEnabled}
+        setDragStylesEnabledRef={setDragStylesEnabledRef}
+      />
+    </DragAndDropItem>
+  );
+}
+
+// Have to split the component into two because the stlyes and selected styles need to be on the animated view, but
+// the changing of styles requires a rerender, which if everything were above would cause the animation to reset,
+// making the bubble jump back to its original position instead of sliding back.
+// It's annoying but it's what works.
+
+type SlideableBubbleProps = {
+  taskName: string;
+  startDragRef: React.MutableRefObject<() => void>;
+  dragOngoingRef: React.MutableRefObject<boolean>;
+  setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  setDragStylesEnabledRef: React.MutableRefObject<(enabled: boolean) => void>;
+};
+
+function SlideableBubble({
+  taskName,
+  startDragRef,
+  dragOngoingRef,
+  setScrollEnabled,
+  setDragStylesEnabledRef,
+}: SlideableBubbleProps) {
+  // Sliding
+  const slideOffset: Animated.Value = useRef(new Animated.Value(0)).current;
+  const slideEnabled = useRef(true);
+  // Dragging styles
+  const [dragStylesEnabled, setDragStylesEnabled] = useState(false);
+  setDragStylesEnabledRef.current = (enabled: boolean) =>
+    setDragStylesEnabled(enabled);
 
   const panResponderRef = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 50 && slideEnabled.current;
+        return Math.abs(gestureState.dx) > 20 && slideEnabled.current;
       },
       onPanResponderGrant: () => {
         setScrollEnabled(false);
@@ -60,55 +110,43 @@ export default function TaskBubble({
   );
 
   return (
-    <DragAndDropItem
-      itemIndex={index}
-      startDragRef={startDragRef}
-      onDragStarted={() => (dragOngoingRef.current = true)}
-      onDragFinishing={() => setDragStylesEnabled(false)}
-      onDragFinished={(startIndex: number, endIndex: number) => {
-        slideEnabled.current = true;
-        onDragFinished(startIndex, endIndex);
-      }}
-      contentContainerStyleSelected={{ zIndex: 1 }}
+    <Animated.View
+      style={[
+        styles.taskContainer,
+        dragStylesEnabled ? styles.taskContainerSelected : {},
+        { transform: [{ translateX: slideOffset }] },
+      ]}
+      {...panResponderRef.current.panHandlers}
     >
-      <Animated.View
-        style={[
-          styles.taskContainer,
-          dragStylesEnabled ? styles.taskContainerSelected : {},
-          { transform: [{ translateX: slideOffset }] },
-        ]}
-        {...panResponderRef.current.panHandlers}
+      <TouchableWithoutFeedback
+        style={{ flex: 1 }}
+        onLongPress={() => {
+          setDragStylesEnabled(true);
+          startDragRef.current();
+          Vibration.vibrate(10);
+          slideEnabled.current = false;
+          dragOngoingRef.current = false;
+        }}
+        onPressOut={() => {
+          if (dragOngoingRef.current) return;
+          slideEnabled.current = true;
+          setDragStylesEnabled(false);
+        }}
       >
-        <TouchableWithoutFeedback
-          style={{ flex: 1 }}
-          onLongPress={() => {
-            startDragRef.current();
-            Vibration.vibrate(10);
-            slideEnabled.current = false;
-            setDragStylesEnabled(true);
-            dragOngoingRef.current = false;
-          }}
-          onPressOut={() => {
-            if (dragOngoingRef.current) return;
-            slideEnabled.current = true;
-            setDragStylesEnabled(false);
-          }}
-        >
-          <View style={styles.taskContent}>
-            <Text style={styles.taskName}>{taskName}</Text>
-            <View style={styles.entriesContainer}>
-              <Entry entry={"full"} />
-              <Entry entry={"half"} />
-              <Entry entry={"empty"} />
-              <Entry entry={"empty"} />
-              <Entry entry={"empty"} />
-              <Entry entry={"empty"} />
-              <Entry entry={"empty"} />
-            </View>
+        <View style={styles.taskContent}>
+          <Text style={styles.taskName}>{taskName}</Text>
+          <View style={styles.entriesContainer}>
+            <Entry entry={"full"} />
+            <Entry entry={"half"} />
+            <Entry entry={"empty"} />
+            <Entry entry={"empty"} />
+            <Entry entry={"empty"} />
+            <Entry entry={"empty"} />
+            <Entry entry={"empty"} />
           </View>
-        </TouchableWithoutFeedback>
-      </Animated.View>
-    </DragAndDropItem>
+        </View>
+      </TouchableWithoutFeedback>
+    </Animated.View>
   );
 }
 
@@ -140,6 +178,7 @@ const styles = StyleSheet.create({
     height: 50,
     backgroundColor: colors.bubble_grey,
     borderRadius: 500000,
+    zIndex: 1,
   },
   taskContainerSelected: {
     backgroundColor: colors.bubble_highlighted_grey,
@@ -157,6 +196,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     bottom: 1,
     width: "34%",
+    zIndex: -1,
   },
   entriesContainer: {
     flex: 1,
