@@ -5,6 +5,7 @@ import { useDragAndDrop } from "./DragAndDropContext";
 type DragAndDropItemProps = {
   itemIndex: number;
   startDragRef: React.MutableRefObject<() => void>;
+  cancelDragRef?: React.MutableRefObject<() => void>;
   onDragStarted?: (startIndex: number) => void;
   onDragFinishing?: (startIndex: number, endIndex: number) => void;
   onDragFinished: (startIndex: number, endIndex: number) => void;
@@ -17,6 +18,7 @@ type DragAndDropItemProps = {
 export default function DragAndDropItem({
   itemIndex,
   startDragRef,
+  cancelDragRef,
   onDragStarted,
   onDragFinishing,
   onDragFinished,
@@ -38,9 +40,29 @@ export default function DragAndDropItem({
   const bubbleStylePos = useRef(new Animated.ValueXY()).current;
   const draggingAnimationFrame = useRef<number | null>(0);
   const panResponderRef = useRef<PanResponderInstance | null>(null);
+  const panGranted = useRef(false);
 
   // Function should be called by user to indicate that this touch is for dragging the bubble
   startDragRef.current = () => setDragging(true);
+  // Function for cancelling the drag
+  if (cancelDragRef !== undefined) {
+    cancelDragRef.current = () => {
+      setDragging(false);
+      cancelAnimationFrame(draggingAnimationFrame.current!);
+      dragCtx.updateEdgeDivingVelocity(null);
+
+      if (!panGranted.current) return;
+      panGranted.current = false;
+      Animated.timing(bubbleStylePos, {
+        toValue: {
+          x: 0,
+          y: 0,
+        },
+        duration: dragCtx.droppingAnimationDuration,
+        useNativeDriver: true,
+      });
+    };
+  }
 
   // Updates the style coordinates of the bubble while it's being dragged, based on the screen pos of the touch and the current y value of the scrollview
   // Animation is started below when this bubble is picked up, and stopped when the bubble is released.
@@ -70,6 +92,7 @@ export default function DragAndDropItem({
       onMoveShouldSetPanResponder: () => trackingTouch.current,
 
       onPanResponderGrant: () => {
+        panGranted.current = true;
         dragCtx.startIndex.current = itemIndex;
         dragCtx.prevIndex.current = itemIndex;
         dragCtx.currentIndex.current = itemIndex;
@@ -87,6 +110,7 @@ export default function DragAndDropItem({
       },
 
       onPanResponderEnd: () => {
+        panGranted.current = false;
         setDragging(false);
         dragCtx.updateEdgeDivingVelocity(null);
         cancelAnimationFrame(draggingAnimationFrame.current!);
