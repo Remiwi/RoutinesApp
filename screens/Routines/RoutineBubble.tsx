@@ -61,7 +61,7 @@ export default function RoutineBubble({
     setEditModalVisible(false);
   };
 
-  const handleDeleteBubble = () => {
+  const handleDeleteRoutine = () => {
     db.transaction(
       (tx) => {
         // get position of bubble with this id
@@ -72,14 +72,16 @@ export default function RoutineBubble({
             const pos = rows.item(0).position;
 
             tx.executeSql(`DELETE FROM routines WHERE id = ?;`, [id]);
-            // Stupid dance again
             tx.executeSql(
-              `UPDATE routines SET position = position * -1 WHERE position > ?;`,
+              `UPDATE routines SET position = position - 1 WHERE position > ?;`,
               [pos]
             );
+            // Update prev_positions. Effectively allows the UNIQUE(position, routine_id) to be enforced.
             tx.executeSql(
-              `UPDATE routines SET position = (position * -1) - 1 WHERE position < 0;`
+              `UPDATE routines SET prev_position = position WHERE prev_position != position;`
             );
+
+            tx.executeSql(`DELETE FROM tasks WHERE routine_id = ?;`, [id]);
           }
         );
       },
@@ -121,7 +123,7 @@ export default function RoutineBubble({
         visible={deleteModalVisible}
         msg="Are you sure you want to delete this routine? All tasks inside will be permanently deleted as well"
         handleCancel={() => setDeleteModalVisible(false)}
-        handleConfirm={handleDeleteBubble}
+        handleConfirm={handleDeleteRoutine}
         confirmColor={colors.grey}
       />
 
