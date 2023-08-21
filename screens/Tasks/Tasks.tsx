@@ -33,7 +33,33 @@ export default function Tasks({ route, navigation }: any) {
           `SELECT * FROM tasks WHERE routine_id = ? AND hidden != ? ORDER BY position ASC;`,
           [routine_id, date_to_int(new Date())],
           (_, { rows: { _array } }) => {
-            setTaskData(_array);
+            const updated_tasks = _array;
+
+            tx.executeSql(
+              `
+              SELECT *
+              FROM entries
+              WHERE
+                date > ? AND
+                task_id IN (
+                  SELECT id FROM tasks WHERE routine_id = ? AND hidden != ?
+                )
+              ORDER BY date DESC;
+            `,
+              [
+                date_to_int(new Date()) - 7,
+                routine_id,
+                date_to_int(new Date()),
+              ],
+              (_, { rows: { _array } }) => {
+                updated_tasks.forEach((task: any) => {
+                  task.entries = _array.filter(
+                    (entry: any) => entry.task_id === task.id
+                  );
+                });
+                setTaskData(updated_tasks);
+              }
+            );
           }
         );
       },
@@ -146,6 +172,16 @@ export default function Tasks({ route, navigation }: any) {
     });
   };
 
+  // Unhide all routines
+  const handleUnhideAll = () => {
+    db.transaction((tx) => {
+      tx.executeSql(`UPDATE tasks SET hidden = 0 WHERE routine_id = ?;`, [
+        routine_id,
+      ]);
+    });
+    updateTaskData();
+  };
+
   return (
     <>
       <TextInputModal
@@ -160,7 +196,12 @@ export default function Tasks({ route, navigation }: any) {
         <Title
           title={routine_name}
           onPressAdd={() => setAddModalVisible(true)}
-          buttons={[]}
+          buttons={[
+            {
+              label: "Unhide All",
+              onPress: handleUnhideAll,
+            },
+          ]}
         ></Title>
         <View style={styles.days_container}>
           <View style={styles.days}>{days}</View>
@@ -174,9 +215,12 @@ export default function Tasks({ route, navigation }: any) {
             return (
               <TaskBubble
                 taskName={task.name}
+                id={task.id}
                 index={index}
+                entries={task.entries}
                 setScrollEnabled={setScrollEnabled}
                 onDragFinished={moveBubbles}
+                onChange={updateTaskData}
                 key={task.id}
               />
             );

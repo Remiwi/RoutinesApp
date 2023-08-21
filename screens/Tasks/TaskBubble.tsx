@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,27 +8,44 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
+  GestureResponderEvent,
+  PanResponderGestureState,
+  TouchableNativeFeedback,
 } from "react-native";
+import { useDatabase } from "../../database";
 import { colors } from "../../variables";
+import date_to_int from "../../date";
 
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
 
 const CIRCLE_EMPTY = require("../../assets/icons/circle_empty.png");
 const CIRCLE_HALF = require("../../assets/icons/circle_half.png");
 const CIRCLE_FULL = require("../../assets/icons/circle_full.png");
+const CLOSE_ICON = require("../../assets/icons/close.png");
+
+const OPEN_THRESHOLD = 20;
+const CLOSE_THRESHOLD = -20;
+const HIDE_THRESHOLD = -50;
+const OPEN_POSITION = 250;
 
 type TaskBubbleProps = {
   taskName: string;
+  id: number;
   index: number;
+  entries: any[];
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   onDragFinished: (startIndex: number, endIndex: number) => void;
+  onChange: () => void;
 };
 
 export default function TaskBubble({
   taskName,
   index,
+  id,
+  entries,
   setScrollEnabled,
   onDragFinished,
+  onChange,
 }: TaskBubbleProps) {
   // Drag and Drop
   const startDragRef = useRef<() => void>(() => {});
@@ -51,10 +68,13 @@ export default function TaskBubble({
     >
       <SlideableBubble
         taskName={taskName}
+        id={id}
+        entries={entries}
         startDragRef={startDragRef}
         dragOngoingRef={dragOngoingRef}
         setScrollEnabled={setScrollEnabled}
         setDragStylesEnabledRef={setDragStylesEnabledRef}
+        onChange={onChange}
       />
     </DragAndDropItem>
   );
@@ -67,27 +87,168 @@ export default function TaskBubble({
 
 type SlideableBubbleProps = {
   taskName: string;
+  id: number;
+  entries: any[];
   startDragRef: React.MutableRefObject<() => void>;
   dragOngoingRef: React.MutableRefObject<boolean>;
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setDragStylesEnabledRef: React.MutableRefObject<(enabled: boolean) => void>;
+  onChange: () => void;
 };
 
 function SlideableBubble({
   taskName,
+  id,
+  entries,
   startDragRef,
   dragOngoingRef,
   setScrollEnabled,
   setDragStylesEnabledRef,
+  onChange,
 }: SlideableBubbleProps) {
+  // DB
+  const db = useDatabase();
   // Sliding
   const slideOffset: Animated.Value = useRef(new Animated.Value(0)).current;
   const slideEnabled = useRef(true);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [rightIconVisible, setRightIconVisible] = useState(false);
   // Dragging styles
   const [dragStylesEnabled, setDragStylesEnabled] = useState(false);
   setDragStylesEnabledRef.current = (enabled: boolean) =>
     setDragStylesEnabled(enabled);
 
+  // Utils
+  const hideTask = () => {
+    db.transaction((tx) => {
+      tx.executeSql(`UPDATE tasks SET hidden = ? WHERE id = ?;`, [
+        date_to_int(new Date()),
+        id,
+      ]);
+    });
+    onChange();
+  };
+
+  const setEntry = (date: number, value: number) => {
+    // Update in the DB
+    db.transaction((tx) => {
+      tx.executeSql(
+        `INSERT OR REPLACE INTO entries (task_id, date, value) VALUES (?, ?, ?);`,
+        [id, date, value]
+      );
+    });
+    // Update here too so the UI updates immediately
+    // TODO
+    // Close or hide the task, depending on the user's settings
+    const hide_on_set = true;
+    if (!hide_on_set) {
+      setTaskOpen(false);
+      Animated.spring(slideOffset, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideOffset, {
+        toValue: -800,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(hideTask);
+    }
+    onChange();
+  };
+
+  // Pan responder handlers
+  const makePanResponderMoveHandler = () => {
+    return (
+      _: GestureResponderEvent,
+      gestureState: PanResponderGestureState
+    ) => {
+      // Set visibility of the hide icon
+      setRightIconVisible(!taskOpen && gestureState.dx < 0);
+
+      // Calculate position
+      const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
+
+      const max_distance = 400;
+      const inertia = 100;
+      const sign = Math.sign(gestureState.dx);
+      const x = Math.abs(gestureState.dx);
+      const offset = max_distance * sigmoid(x / inertia) - max_distance / 2;
+
+      Animated.event([{ dx: slideOffset }], {
+        useNativeDriver: false,
+      })({ dx: sign * offset + (taskOpen ? OPEN_POSITION : 0) });
+    };
+  };
+
+  const makePanResponderEndHandler = () => {
+    return (
+      _: GestureResponderEvent,
+      gestureState: PanResponderGestureState
+    ) => {
+      if (!taskOpen) {
+        // Just hide the task
+        if (gestureState.dx <= HIDE_THRESHOLD) {
+          Animated.timing(slideOffset, {
+            toValue: -1000,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(hideTask);
+          return;
+        }
+
+        // Open the task
+        if (gestureState.dx >= OPEN_THRESHOLD) {
+          Animated.spring(slideOffset, {
+            toValue: OPEN_POSITION,
+            useNativeDriver: true,
+          }).start();
+          setTaskOpen(true);
+          return;
+        }
+
+        // Return to neutral
+        Animated.spring(slideOffset, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // Close the task
+        if (gestureState.dx <= CLOSE_THRESHOLD) {
+          Animated.spring(slideOffset, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+          setTaskOpen(false);
+          return;
+        }
+
+        // Return to open
+        Animated.spring(slideOffset, {
+          toValue: OPEN_POSITION,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+
+      Animated.spring(slideOffset, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+      setScrollEnabled(true);
+    };
+  };
+
+  // Initialize the above
+  const panResponderMoveHandlerRef = useRef(makePanResponderMoveHandler());
+  const panResponderEndHandlerRef = useRef(makePanResponderEndHandler());
+  // Keep them up to date
+  useEffect(() => {
+    panResponderMoveHandlerRef.current = makePanResponderMoveHandler();
+    panResponderEndHandlerRef.current = makePanResponderEndHandler();
+  }, [taskOpen]);
+
+  // Make the panresponder
   const panResponderRef = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
@@ -96,65 +257,106 @@ function SlideableBubble({
       onPanResponderGrant: () => {
         setScrollEnabled(false);
       },
-      onPanResponderMove: Animated.event([null, { dx: slideOffset }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderEnd: () => {
-        Animated.spring(slideOffset, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-        setScrollEnabled(true);
-      },
+      onPanResponderMove: (e, g) => panResponderMoveHandlerRef.current(e, g),
+      onPanResponderEnd: (e, g) => panResponderEndHandlerRef.current(e, g),
     })
   );
 
   return (
-    <Animated.View
-      style={[
-        styles.taskContainer,
-        dragStylesEnabled ? styles.taskContainerSelected : {},
-        { transform: [{ translateX: slideOffset }] },
-      ]}
-      {...panResponderRef.current.panHandlers}
-    >
-      <TouchableWithoutFeedback
-        style={{ flex: 1 }}
-        onLongPress={() => {
-          setDragStylesEnabled(true);
-          startDragRef.current();
-          Vibration.vibrate(10);
-          slideEnabled.current = false;
-          dragOngoingRef.current = false;
-        }}
-        onPressOut={() => {
-          if (dragOngoingRef.current) return;
-          slideEnabled.current = true;
-          setDragStylesEnabled(false);
-        }}
-      >
-        <View style={styles.taskContent}>
-          <Text style={styles.taskName}>{taskName}</Text>
-          <View style={styles.entriesContainer}>
-            <Entry entry={"full"} />
-            <Entry entry={"half"} />
-            <Entry entry={"empty"} />
-            <Entry entry={"empty"} />
-            <Entry entry={"empty"} />
-            <Entry entry={"empty"} />
-            <Entry entry={"empty"} />
-          </View>
+    <View style={{ flex: 1 }}>
+      {/* Background Buttons */}
+      <View style={styles.backgroundButtonsContainer}>
+        {/* Left side*/}
+        <View style={styles.backgroundButtonsContainerLeft}>
+          <BackgroundButton
+            name="Empty"
+            icon={CIRCLE_EMPTY}
+            textColor={colors.grey}
+            iconColor={colors.away_grey}
+            opacity={rightIconVisible ? 0 : 1}
+            onPress={() => {
+              setEntry(date_to_int(new Date()), 0);
+            }}
+          />
+          <BackgroundButton
+            name="Half"
+            icon={CIRCLE_HALF}
+            textColor={colors.white}
+            iconColor={colors.blue}
+            opacity={rightIconVisible ? 0 : 1}
+            onPress={() => {
+              setEntry(date_to_int(new Date()), 1);
+            }}
+          />
+          <BackgroundButton
+            name="Full"
+            icon={CIRCLE_FULL}
+            textColor={colors.white}
+            iconColor={colors.blue}
+            opacity={rightIconVisible ? 0 : 1}
+            onPress={() => {
+              setEntry(date_to_int(new Date()), 2);
+            }}
+          />
         </View>
-      </TouchableWithoutFeedback>
-    </Animated.View>
+        {/* Right side */}
+        <BackgroundButton
+          name="Hide"
+          icon={CLOSE_ICON}
+          opacity={rightIconVisible ? 1 : 0}
+          textColor={colors.grey}
+          iconColor={colors.grey}
+        />
+      </View>
+      {/* Slideable foreground */}
+      <Animated.View
+        style={[
+          styles.taskContainer,
+          dragStylesEnabled ? styles.taskContainerSelected : {},
+          { transform: [{ translateX: slideOffset }] },
+        ]}
+        {...panResponderRef.current.panHandlers}
+      >
+        <TouchableWithoutFeedback
+          style={{ flex: 1 }}
+          onLongPress={() => {
+            setDragStylesEnabled(true);
+            startDragRef.current();
+            Vibration.vibrate(10);
+            slideEnabled.current = false;
+            dragOngoingRef.current = false;
+          }}
+          onPressOut={() => {
+            if (dragOngoingRef.current) return;
+            slideEnabled.current = true;
+            setDragStylesEnabled(false);
+          }}
+        >
+          <View style={styles.taskContent}>
+            <Text style={styles.taskName}>{taskName}</Text>
+            <View style={styles.entriesContainer}>
+              {Array.from({ length: 7 }, (_, i) => {
+                const date = date_to_int(new Date()) - i;
+                const entry = entries.filter((entry) => entry.date === date)[0];
+                const entryValue = entry !== undefined ? entry.value : 0;
+                return <Entry entryValue={entryValue} key={date} />;
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Animated.View>
+    </View>
   );
 }
 
 type EntryProps = {
-  entry: "empty" | "half" | "full";
+  entryValue: number;
 };
 
-function Entry({ entry }: EntryProps) {
+function Entry({ entryValue }: EntryProps) {
+  const entry: "empty" | "half" | "full" =
+    entryValue === 0 ? "empty" : entryValue === 1 ? "half" : "full";
+
   return (
     <Image
       source={
@@ -172,10 +374,51 @@ function Entry({ entry }: EntryProps) {
   );
 }
 
+type BackgroundButtonProps = {
+  name: string;
+  icon: any;
+  textColor: string;
+  iconColor: string;
+  opacity: number;
+  onPress?: () => void;
+};
+
+function BackgroundButton({
+  name,
+  icon,
+  opacity,
+  textColor,
+  iconColor,
+  onPress,
+}: BackgroundButtonProps) {
+  return (
+    <View style={styles.backgroundButtonBorder}>
+      <TouchableNativeFeedback
+        onPress={onPress !== undefined ? onPress : () => {}}
+        background={
+          onPress !== undefined
+            ? undefined
+            : TouchableNativeFeedback.Ripple("#00000000", false)
+        }
+      >
+        <View style={[styles.backgroundButton, { opacity: opacity }]}>
+          <Image
+            source={icon}
+            style={[styles.backgroundButtonIcon, { tintColor: iconColor }]}
+          />
+          <Text style={[styles.backgroundButtonText, { color: textColor }]}>
+            {name}
+          </Text>
+        </View>
+      </TouchableNativeFeedback>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   taskContainer: {
     width: "100%",
-    height: 50,
+    height: 45,
     backgroundColor: colors.bubble_grey,
     borderRadius: 500000,
     zIndex: 1,
@@ -198,6 +441,7 @@ const styles = StyleSheet.create({
     width: "34%",
     zIndex: -1,
   },
+
   entriesContainer: {
     flex: 1,
     flexDirection: "row",
@@ -208,5 +452,52 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     tintColor: colors.away_grey,
+  },
+
+  backgroundButtonsContainer: {
+    position: "absolute",
+    height: "100%",
+    width: "100%",
+    paddingLeft: 10,
+    paddingRight: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  backgroundButtonsContainerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    gap: 5,
+  },
+  backgroundButtonBorder: {
+    overflow: "hidden",
+    width: 75,
+    height: 45,
+    borderRadius: 500000,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  backgroundButton: {
+    paddingTop: 4,
+    width: "100%",
+    height: "100%",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: -5,
+  },
+  backgroundButtonIcon: {
+    width: 24,
+    height: 24,
+    margin: 0,
+    padding: 0,
+  },
+  backgroundButtonText: {
+    fontFamily: "notoSansRegular",
+    fontSize: 12,
+    margin: 0,
+    padding: 0,
   },
 });
