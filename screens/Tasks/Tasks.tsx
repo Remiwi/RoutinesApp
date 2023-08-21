@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, View, Vibration } from "react-native";
 import { useDatabase } from "../../database";
-import date_to_int from "../../date";
+import { getToday, getDaysBack } from "../../date";
 import { colors } from "../../variables";
 
 import Title from "../../components/Title/Title";
@@ -19,9 +19,9 @@ export default function Tasks({ route, navigation }: any) {
   const { routine_id, routine_name } = route.params;
   // DOM State
   const [taskData, setTaskData] = useState<any[]>([]);
-  const [days, setDays] = useState<React.ReactNode[]>([]);
-  const [activeDay, setActiveDay] = useState<number>(0); // 0 = today, 1 = yesterday, etc
-  const [loading, setLoading] = useState<boolean>(true);
+  // Date
+  const [activeDay, setActiveDay] = useState<number>(getToday());
+  const activeDayRef = useRef(activeDay);
   // Modals
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
   const [addErrorMsg, setAddErrorMsg] = useState<string>("");
@@ -31,7 +31,7 @@ export default function Tasks({ route, navigation }: any) {
       (tx) => {
         tx.executeSql(
           `SELECT * FROM tasks WHERE routine_id = ? AND hidden != ? ORDER BY position ASC;`,
-          [routine_id, date_to_int(new Date())],
+          [routine_id, getToday()],
           (_, { rows: { _array } }) => {
             const updated_tasks = _array;
 
@@ -46,11 +46,7 @@ export default function Tasks({ route, navigation }: any) {
                 )
               ORDER BY date DESC;
             `,
-              [
-                date_to_int(new Date()) - 7,
-                routine_id,
-                date_to_int(new Date()),
-              ],
+              [getDaysBack(7), routine_id, getToday()],
               (_, { rows: { _array } }) => {
                 updated_tasks.forEach((task: any) => {
                   task.entries = _array.filter(
@@ -71,21 +67,7 @@ export default function Tasks({ route, navigation }: any) {
 
   useEffect(() => {
     updateTaskData();
-
-    setTimeout(() => {
-      const the_days = [];
-      for (let i = 0; i < 7; i++) {
-        the_days.push(<Day days_back={i} active={activeDay === i} key={i} />);
-      }
-      setDays(the_days);
-
-      setLoading(false);
-    }, 0);
   }, []);
-
-  if (loading) {
-    return <></>;
-  }
 
   // Add task stuff
   const handleAddCancel = () => {
@@ -204,7 +186,19 @@ export default function Tasks({ route, navigation }: any) {
           ]}
         ></Title>
         <View style={styles.days_container}>
-          <View style={styles.days}>{days}</View>
+          <View style={styles.days}>
+            {Array.from({ length: 7 }, (_, i) => (
+              <Day
+                days_back={i}
+                active={activeDay === getDaysBack(i)}
+                onLongPress={() => {
+                  Vibration.vibrate(100);
+                  setActiveDay(getDaysBack(i));
+                }}
+                key={i}
+              />
+            ))}
+          </View>
         </View>
         <DragAndDropScrollView
           itemGap={5}
@@ -217,6 +211,7 @@ export default function Tasks({ route, navigation }: any) {
                 taskName={task.name}
                 id={task.id}
                 index={index}
+                activeDay={activeDay}
                 entries={task.entries}
                 setScrollEnabled={setScrollEnabled}
                 onDragFinished={moveBubbles}

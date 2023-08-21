@@ -1,12 +1,14 @@
-import { StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View, TouchableWithoutFeedback } from "react-native";
 import { colors } from "../../variables";
 
 type DayProps = {
   days_back: number;
   active: boolean;
+  onLongPress: () => void;
 };
 
-export default function Day({ days_back, active }: DayProps) {
+export default function Day({ days_back, active, onLongPress }: DayProps) {
   const day = new Date();
   day.setDate(day.getDate() - days_back);
 
@@ -16,18 +18,26 @@ export default function Day({ days_back, active }: DayProps) {
   const dayofmonth = day.getDate();
 
   return (
-    <View style={styles.day}>
-      <Text
-        style={[styles.dayText, { color: active ? colors.white : colors.grey }]}
-      >
-        {dayofweek}
-      </Text>
-      <Text
-        style={[styles.dayText, { color: active ? colors.white : colors.grey }]}
-      >
-        {dayofmonth}
-      </Text>
-    </View>
+    <TouchableWithoutFeedback onLongPress={onLongPress}>
+      <View style={styles.day}>
+        <Text
+          style={[
+            styles.dayText,
+            { color: active ? colors.white : colors.grey },
+          ]}
+        >
+          {dayofweek}
+        </Text>
+        <Text
+          style={[
+            styles.dayText,
+            { color: active ? colors.white : colors.grey },
+          ]}
+        >
+          {dayofmonth}
+        </Text>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 

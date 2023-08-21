@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useDatabase } from "../../database";
 import { colors } from "../../variables";
-import date_to_int from "../../date";
+import { getToday, getDaysBack } from "../../date";
 
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
 
@@ -29,11 +29,13 @@ const HIDE_THRESHOLD = -50;
 const OPEN_POSITION = 250;
 const HIDDEN_POSITION_OFFSET = 250;
 const HIDE_DURATION = 300;
+const HIDE_ON_SET = false;
 
 type TaskBubbleProps = {
   taskName: string;
   id: number;
   index: number;
+  activeDay: number;
   entries: any[];
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   onDragFinished: (startIndex: number, endIndex: number) => void;
@@ -44,6 +46,7 @@ export default function TaskBubble({
   taskName,
   index,
   id,
+  activeDay,
   entries,
   setScrollEnabled,
   onDragFinished,
@@ -71,6 +74,7 @@ export default function TaskBubble({
       <SlideableBubble
         taskName={taskName}
         id={id}
+        activeDay={activeDay}
         entries={entries}
         startDragRef={startDragRef}
         dragOngoingRef={dragOngoingRef}
@@ -90,6 +94,7 @@ export default function TaskBubble({
 type SlideableBubbleProps = {
   taskName: string;
   id: number;
+  activeDay: number;
   entries: any[];
   startDragRef: React.MutableRefObject<() => void>;
   dragOngoingRef: React.MutableRefObject<boolean>;
@@ -101,6 +106,7 @@ type SlideableBubbleProps = {
 function SlideableBubble({
   taskName,
   id,
+  activeDay,
   entries,
   startDragRef,
   dragOngoingRef,
@@ -124,7 +130,7 @@ function SlideableBubble({
   const hideTask = () => {
     db.transaction((tx) => {
       tx.executeSql(`UPDATE tasks SET hidden = ? WHERE id = ?;`, [
-        date_to_int(new Date()),
+        getToday(),
         id,
       ]);
     });
@@ -142,8 +148,7 @@ function SlideableBubble({
     // Update here too so the UI updates immediately
     // TODO
     // Close or hide the task, depending on the user's settings
-    const hide_on_set = true;
-    if (!hide_on_set) {
+    if (!HIDE_ON_SET) {
       setTaskOpen(false);
       Animated.spring(slideOffset, {
         toValue: 0,
@@ -277,7 +282,7 @@ function SlideableBubble({
             iconColor={colors.away_grey}
             opacity={slideOffset}
             onPress={() => {
-              setEntry(date_to_int(new Date()), 0);
+              setEntry(activeDay, 0);
             }}
           />
           <BackgroundButton
@@ -287,7 +292,7 @@ function SlideableBubble({
             iconColor={colors.blue}
             opacity={slideOffset}
             onPress={() => {
-              setEntry(date_to_int(new Date()), 1);
+              setEntry(activeDay, 1);
             }}
           />
           <BackgroundButton
@@ -297,7 +302,7 @@ function SlideableBubble({
             iconColor={colors.blue}
             opacity={slideOffset}
             onPress={() => {
-              setEntry(date_to_int(new Date()), 2);
+              setEntry(activeDay, 2);
             }}
           />
         </View>
@@ -338,7 +343,7 @@ function SlideableBubble({
             <Text style={styles.taskName}>{taskName}</Text>
             <View style={styles.entriesContainer}>
               {Array.from({ length: 7 }, (_, i) => {
-                const date = date_to_int(new Date()) - i;
+                const date = getDaysBack(i);
                 const entry = entries.filter((entry) => entry.date === date)[0];
                 const entryValue = entry !== undefined ? entry.value : 0;
                 return <Entry entryValue={entryValue} key={date} />;

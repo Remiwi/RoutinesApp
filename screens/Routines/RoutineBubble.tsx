@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useDatabase } from "../../database";
 import { colors } from "../../variables";
-import dateToInt from "../../date";
+import { getToday } from "../../date";
 
 import TextInputModal from "../../components/TextInputModal/TextInputModal";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
@@ -94,10 +94,9 @@ export default function RoutineBubble({
   };
 
   const handleHideRoutine = () => {
-    const today = dateToInt(new Date());
     db.transaction((tx) => {
       tx.executeSql(`UPDATE routines SET hidden = ? WHERE id = ?;`, [
-        today,
+        getToday(),
         id,
       ]);
     });

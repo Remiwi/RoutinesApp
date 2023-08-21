@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { useDatabase } from "../../database";
-import date_to_int from "../../date";
+import { getToday } from "../../date";
 import { colors } from "../../variables";
 
 import RoutineBubble from "./RoutineBubble";
@@ -22,7 +22,7 @@ export default function Routines({ navigation }: any) {
     db.transaction((tx) => {
       tx.executeSql(
         `SELECT * FROM routines WHERE hidden != ? ORDER BY position ASC;`,
-        [date_to_int(new Date())],
+        [getToday()],
         (_, { rows: { _array } }) => setRoutineData(_array)
       );
     });
