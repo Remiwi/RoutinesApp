@@ -52,6 +52,16 @@ db.transaction(
         UPDATE tasks SET prev_position = position WHERE prev_position IS NULL;
       END;`
     );
+
+    tx.executeSql(
+      `CREATE TABLE IF NOT EXISTS entries (
+        task_id INTEGER NOT NULL,
+        date INTEGER NOT NULL,
+        value INTEGER NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks (id),
+        PRIMARY KEY (task_id, date)
+      )`
+    );
   },
   (e) => {
     console.log(e);
