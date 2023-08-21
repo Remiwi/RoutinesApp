@@ -1,5 +1,11 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableWithoutFeedback } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableWithoutFeedback,
+  ToastAndroid,
+} from "react-native";
 import { colors } from "../../variables";
 
 type DayProps = {
@@ -18,7 +24,12 @@ export default function Day({ days_back, active, onLongPress }: DayProps) {
   const dayofmonth = day.getDate();
 
   return (
-    <TouchableWithoutFeedback onLongPress={onLongPress}>
+    <TouchableWithoutFeedback
+      onPress={() =>
+        ToastAndroid.show("Press and hold to select a day", ToastAndroid.SHORT)
+      }
+      onLongPress={onLongPress}
+    >
       <View style={styles.day}>
         <Text
           style={[
