@@ -10,21 +10,39 @@ type DragAndDropScrollViewProps = ScrollViewProps & {
   evasionAnimationDuration?: number;
   droppingAnimationDuration?: number;
   itemGap?: number;
-}
+};
 
-function DragAndDropScrollView({ upperDivingThreshold, lowerDivingThreshold, maxDivingSpeed, evasionAnimationDuration, droppingAnimationDuration, itemGap, ...props }: DragAndDropScrollViewProps) {
+function DragAndDropScrollView({
+  upperDivingThreshold,
+  lowerDivingThreshold,
+  maxDivingSpeed,
+  evasionAnimationDuration,
+  droppingAnimationDuration,
+  itemGap,
+  ...props
+}: DragAndDropScrollViewProps) {
   return (
     <DragAndDropProvider
-      upperDivingThreshold={upperDivingThreshold === undefined ? 150 : upperDivingThreshold}
-      lowerDivingThreshold={lowerDivingThreshold === undefined ? 150 : lowerDivingThreshold}
+      upperDivingThreshold={
+        upperDivingThreshold === undefined ? 150 : upperDivingThreshold
+      }
+      lowerDivingThreshold={
+        lowerDivingThreshold === undefined ? 150 : lowerDivingThreshold
+      }
       maxDivingSpeed={maxDivingSpeed === undefined ? 20 : maxDivingSpeed}
-      evasionAnimationDuration={evasionAnimationDuration === undefined ? 200 : evasionAnimationDuration}
-      droppingAnimationDuration={droppingAnimationDuration === undefined ? 200 : droppingAnimationDuration}
+      evasionAnimationDuration={
+        evasionAnimationDuration === undefined ? 200 : evasionAnimationDuration
+      }
+      droppingAnimationDuration={
+        droppingAnimationDuration === undefined
+          ? 200
+          : droppingAnimationDuration
+      }
       itemGap={itemGap === undefined ? 0 : itemGap}
     >
-      <ContextlessDragAndDropScrollView {...props}/>
+      <ContextlessDragAndDropScrollView {...props} />
     </DragAndDropProvider>
   );
 }
 
-export { DragAndDropItem, DragAndDropScrollView, DragAndDropScrollViewProps }
+export { DragAndDropItem, DragAndDropScrollView, DragAndDropScrollViewProps };
