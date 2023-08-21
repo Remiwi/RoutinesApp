@@ -27,6 +27,8 @@ const OPEN_THRESHOLD = 20;
 const CLOSE_THRESHOLD = -20;
 const HIDE_THRESHOLD = -50;
 const OPEN_POSITION = 250;
+const HIDDEN_POSITION_OFFSET = 250;
+const HIDE_DURATION = 300;
 
 type TaskBubbleProps = {
   taskName: string;
@@ -109,10 +111,10 @@ function SlideableBubble({
   // DB
   const db = useDatabase();
   // Sliding
-  const slideOffset: Animated.Value = useRef(new Animated.Value(0)).current;
+  const slideOffset = useRef(new Animated.Value(0)).current;
   const slideEnabled = useRef(true);
   const [taskOpen, setTaskOpen] = useState(false);
-  const [rightIconVisible, setRightIconVisible] = useState(false);
+  const taskLengthRef = useRef(0);
   // Dragging styles
   const [dragStylesEnabled, setDragStylesEnabled] = useState(false);
   setDragStylesEnabledRef.current = (enabled: boolean) =>
@@ -149,8 +151,9 @@ function SlideableBubble({
       }).start();
     } else {
       Animated.timing(slideOffset, {
-        toValue: -800,
-        duration: 200,
+        toValue:
+          OPEN_POSITION - taskLengthRef.current * 2 - HIDDEN_POSITION_OFFSET,
+        duration: HIDE_DURATION,
         useNativeDriver: true,
       }).start(hideTask);
     }
@@ -163,9 +166,6 @@ function SlideableBubble({
       _: GestureResponderEvent,
       gestureState: PanResponderGestureState
     ) => {
-      // Set visibility of the hide icon
-      setRightIconVisible(!taskOpen && gestureState.dx < 0);
-
       // Calculate position
       const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
@@ -190,8 +190,11 @@ function SlideableBubble({
         // Just hide the task
         if (gestureState.dx <= HIDE_THRESHOLD) {
           Animated.timing(slideOffset, {
-            toValue: -1000,
-            duration: 200,
+            toValue:
+              gestureState.dx -
+              taskLengthRef.current * 2 -
+              HIDDEN_POSITION_OFFSET,
+            duration: HIDE_DURATION,
             useNativeDriver: true,
           }).start(hideTask);
           return;
@@ -231,10 +234,6 @@ function SlideableBubble({
         return;
       }
 
-      Animated.spring(slideOffset, {
-        toValue: 0,
-        useNativeDriver: true,
-      }).start();
       setScrollEnabled(true);
     };
   };
@@ -263,7 +262,10 @@ function SlideableBubble({
   );
 
   return (
-    <View style={{ flex: 1 }}>
+    <View
+      style={{ flex: 1 }}
+      onLayout={(e) => (taskLengthRef.current = e.nativeEvent.layout.width)}
+    >
       {/* Background Buttons */}
       <View style={styles.backgroundButtonsContainer}>
         {/* Left side*/}
@@ -273,7 +275,7 @@ function SlideableBubble({
             icon={CIRCLE_EMPTY}
             textColor={colors.grey}
             iconColor={colors.away_grey}
-            opacity={rightIconVisible ? 0 : 1}
+            opacity={slideOffset}
             onPress={() => {
               setEntry(date_to_int(new Date()), 0);
             }}
@@ -283,7 +285,7 @@ function SlideableBubble({
             icon={CIRCLE_HALF}
             textColor={colors.white}
             iconColor={colors.blue}
-            opacity={rightIconVisible ? 0 : 1}
+            opacity={slideOffset}
             onPress={() => {
               setEntry(date_to_int(new Date()), 1);
             }}
@@ -293,7 +295,7 @@ function SlideableBubble({
             icon={CIRCLE_FULL}
             textColor={colors.white}
             iconColor={colors.blue}
-            opacity={rightIconVisible ? 0 : 1}
+            opacity={slideOffset}
             onPress={() => {
               setEntry(date_to_int(new Date()), 2);
             }}
@@ -303,7 +305,7 @@ function SlideableBubble({
         <BackgroundButton
           name="Hide"
           icon={CLOSE_ICON}
-          opacity={rightIconVisible ? 1 : 0}
+          opacity={Animated.divide(Animated.add(slideOffset, 700), 600)}
           textColor={colors.grey}
           iconColor={colors.grey}
         />
@@ -379,7 +381,7 @@ type BackgroundButtonProps = {
   icon: any;
   textColor: string;
   iconColor: string;
-  opacity: number;
+  opacity: Animated.AnimatedInterpolation<number>;
   onPress?: () => void;
 };
 
@@ -401,7 +403,7 @@ function BackgroundButton({
             : TouchableNativeFeedback.Ripple("#00000000", false)
         }
       >
-        <View style={[styles.backgroundButton, { opacity: opacity }]}>
+        <Animated.View style={[styles.backgroundButton, { opacity: opacity }]}>
           <Image
             source={icon}
             style={[styles.backgroundButtonIcon, { tintColor: iconColor }]}
@@ -409,7 +411,7 @@ function BackgroundButton({
           <Text style={[styles.backgroundButtonText, { color: textColor }]}>
             {name}
           </Text>
-        </View>
+        </Animated.View>
       </TouchableNativeFeedback>
     </View>
   );
