@@ -17,6 +17,7 @@ import { colors } from "../../variables";
 import { getToday, getDaysBack } from "../../date";
 
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
+import DragUpMenuModal from "../../components/DragUpMenuModal/DragUpMenuModal";
 
 const CIRCLE_EMPTY = require("../../assets/icons/circle_empty.png");
 const CIRCLE_HALF = require("../../assets/icons/circle_half.png");
@@ -56,11 +57,13 @@ export default function TaskBubble({
   const startDragRef = useRef<() => void>(() => {});
   const dragOngoingRef = useRef(false);
   const setDragStylesEnabledRef = useRef<(enabled: boolean) => void>(() => {});
+  const cancelDragRef = useRef<() => void>(() => {});
 
   return (
     <DragAndDropItem
       itemIndex={index}
       startDragRef={startDragRef}
+      cancelDragRef={cancelDragRef}
       onDragStarted={() => {
         dragOngoingRef.current = true;
       }}
@@ -77,6 +80,7 @@ export default function TaskBubble({
         activeDay={activeDay}
         entries={entries}
         startDragRef={startDragRef}
+        cancelDragRef={cancelDragRef}
         dragOngoingRef={dragOngoingRef}
         setScrollEnabled={setScrollEnabled}
         setDragStylesEnabledRef={setDragStylesEnabledRef}
@@ -97,6 +101,7 @@ type SlideableBubbleProps = {
   activeDay: number;
   entries: any[];
   startDragRef: React.MutableRefObject<() => void>;
+  cancelDragRef: React.MutableRefObject<() => void>;
   dragOngoingRef: React.MutableRefObject<boolean>;
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setDragStylesEnabledRef: React.MutableRefObject<(enabled: boolean) => void>;
@@ -109,6 +114,7 @@ function SlideableBubble({
   activeDay,
   entries,
   startDragRef,
+  cancelDragRef,
   dragOngoingRef,
   setScrollEnabled,
   setDragStylesEnabledRef,
@@ -121,6 +127,16 @@ function SlideableBubble({
   const slideEnabled = useRef(true);
   const [taskOpen, setTaskOpen] = useState(false);
   const taskLengthRef = useRef(0);
+  // Info modal
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const infoChangeOpenStateRef = useRef<
+    (
+      level: "half" | "full" | "closed",
+      callback?: (() => void) | undefined,
+      override_timing?: number | undefined
+    ) => void
+  >(() => {});
+  const longPressDetectedRef = useRef(false);
   // Dragging styles
   const [dragStylesEnabled, setDragStylesEnabled] = useState(false);
   setDragStylesEnabledRef.current = (enabled: boolean) =>
@@ -267,92 +283,111 @@ function SlideableBubble({
   );
 
   return (
-    <View
-      style={{ flex: 1 }}
-      onLayout={(e) => (taskLengthRef.current = e.nativeEvent.layout.width)}
-    >
-      {/* Background Buttons */}
-      <View style={styles.backgroundButtonsContainer}>
-        {/* Left side*/}
-        <View style={styles.backgroundButtonsContainerLeft}>
+    <>
+      <DragUpMenuModal
+        visible={infoModalVisible}
+        onClose={() => {
+          setInfoModalVisible(false);
+          setDragStylesEnabled(false);
+        }}
+        changeOpenStateRef={infoChangeOpenStateRef}
+      >
+        {}
+      </DragUpMenuModal>
+      <View
+        style={{ flex: 1 }}
+        onLayout={(e) => (taskLengthRef.current = e.nativeEvent.layout.width)}
+      >
+        {/* Background Buttons */}
+        <View style={styles.backgroundButtonsContainer}>
+          {/* Left side*/}
+          <View style={styles.backgroundButtonsContainerLeft}>
+            <BackgroundButton
+              name="Empty"
+              icon={CIRCLE_EMPTY}
+              textColor={colors.grey}
+              iconColor={colors.away_grey}
+              opacity={slideOffset}
+              onPress={() => {
+                setEntry(activeDay, 0);
+              }}
+            />
+            <BackgroundButton
+              name="Half"
+              icon={CIRCLE_HALF}
+              textColor={colors.white}
+              iconColor={colors.blue}
+              opacity={slideOffset}
+              onPress={() => {
+                setEntry(activeDay, 1);
+              }}
+            />
+            <BackgroundButton
+              name="Full"
+              icon={CIRCLE_FULL}
+              textColor={colors.white}
+              iconColor={colors.blue}
+              opacity={slideOffset}
+              onPress={() => {
+                setEntry(activeDay, 2);
+              }}
+            />
+          </View>
+          {/* Right side */}
           <BackgroundButton
-            name="Empty"
-            icon={CIRCLE_EMPTY}
+            name="Hide"
+            icon={CLOSE_ICON}
+            opacity={Animated.divide(Animated.add(slideOffset, 700), 600)}
             textColor={colors.grey}
-            iconColor={colors.away_grey}
-            opacity={slideOffset}
-            onPress={() => {
-              setEntry(activeDay, 0);
-            }}
-          />
-          <BackgroundButton
-            name="Half"
-            icon={CIRCLE_HALF}
-            textColor={colors.white}
-            iconColor={colors.blue}
-            opacity={slideOffset}
-            onPress={() => {
-              setEntry(activeDay, 1);
-            }}
-          />
-          <BackgroundButton
-            name="Full"
-            icon={CIRCLE_FULL}
-            textColor={colors.white}
-            iconColor={colors.blue}
-            opacity={slideOffset}
-            onPress={() => {
-              setEntry(activeDay, 2);
-            }}
+            iconColor={colors.grey}
           />
         </View>
-        {/* Right side */}
-        <BackgroundButton
-          name="Hide"
-          icon={CLOSE_ICON}
-          opacity={Animated.divide(Animated.add(slideOffset, 700), 600)}
-          textColor={colors.grey}
-          iconColor={colors.grey}
-        />
-      </View>
-      {/* Slideable foreground */}
-      <Animated.View
-        style={[
-          styles.taskContainer,
-          dragStylesEnabled ? styles.taskContainerSelected : {},
-          { transform: [{ translateX: slideOffset }] },
-        ]}
-        {...panResponderRef.current.panHandlers}
-      >
-        <TouchableWithoutFeedback
-          style={{ flex: 1 }}
-          onLongPress={() => {
-            setDragStylesEnabled(true);
-            startDragRef.current();
-            Vibration.vibrate(10);
-            slideEnabled.current = false;
-            dragOngoingRef.current = false;
-          }}
-          onPressOut={() => {
-            if (dragOngoingRef.current) return;
-            slideEnabled.current = true;
-            setDragStylesEnabled(false);
-          }}
+        {/* Slideable foreground */}
+        <Animated.View
+          style={[
+            styles.taskContainer,
+            dragStylesEnabled ? styles.taskContainerSelected : {},
+            { transform: [{ translateX: slideOffset }] },
+          ]}
+          {...panResponderRef.current.panHandlers}
         >
-          <View style={styles.taskContent}>
-            <Text style={styles.taskName}>{taskName}</Text>
-            <View style={styles.entriesContainer}>
-              {Array.from({ length: 7 }, (_, i) => {
-                const date = getDaysBack(i);
-                const entry = entries.filter((entry) => entry.date === date)[0];
-                const entryValue = entry !== undefined ? entry.value : 0;
-                return <Entry entryValue={entryValue} key={date} />;
-              })}
+          <TouchableWithoutFeedback
+            style={{ flex: 1 }}
+            onLongPress={() => {
+              setDragStylesEnabled(true);
+              startDragRef.current();
+              Vibration.vibrate(10);
+              slideEnabled.current = false;
+              dragOngoingRef.current = false;
+              longPressDetectedRef.current = true;
+            }}
+            onPressOut={() => {
+              if (!longPressDetectedRef.current) return;
+              longPressDetectedRef.current = false;
+              if (dragOngoingRef.current) return;
+              cancelDragRef.current();
+              slideEnabled.current = true;
+              setInfoModalVisible(true);
+              infoChangeOpenStateRef.current("half");
+            }}
+          >
+            <View style={styles.taskContent}>
+              <Text style={styles.taskName}>{taskName}</Text>
+              <View style={styles.entriesContainer}>
+                {Array.from({ length: 7 }, (_, i) => {
+                  const date = getDaysBack(i);
+                  const entry = entries.filter(
+                    (entry) => entry.date === date
+                  )[0];
+                  const entryValue = entry !== undefined ? entry.value : 0;
+                  return <Entry entryValue={entryValue} key={date} />;
+                })}
+              </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Animated.View>
-    </View>
+          </TouchableWithoutFeedback>
+        </Animated.View>
+      </View>
+    </>
   );
 }
 
