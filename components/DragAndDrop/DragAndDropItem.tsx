@@ -60,7 +60,7 @@ export default function DragAndDropItem({
         },
         duration: dragCtx.droppingAnimationDuration,
         useNativeDriver: true,
-      });
+      }).start();
     };
   }
 
