@@ -15,7 +15,7 @@ import { colors } from "../../variables";
 const EXTRA_HEIGHT = 50;
 const EXTRA_RATE = 0.01;
 const OPEN_HEIGHT = 500;
-const PEEK_HEIGHT = 150;
+const PEEK_HEIGHT = 200;
 const GRAB_SIZE = 25;
 const STATE_ANIMATION_TIME = 200;
 const STATE_TRANSITION_THRESHOLD = 10;
@@ -107,9 +107,18 @@ export default function DragUpMenuModal({
             EXTRA_HEIGHT / 2;
         }
         height.setValue(newHeight);
-      }
-      if (openState === "half") {
-        height.setValue(OPEN_HEIGHT - PEEK_HEIGHT + gestureState.dy);
+      } else if (openState === "half") {
+        if (gestureState.dy < -(OPEN_HEIGHT - PEEK_HEIGHT)) {
+          let newHeight = gestureState.dy + (OPEN_HEIGHT - PEEK_HEIGHT);
+          if (newHeight < 0) {
+            newHeight =
+              (sigmoid(newHeight * EXTRA_RATE) - 1) * EXTRA_HEIGHT +
+              EXTRA_HEIGHT / 2;
+          }
+          height.setValue(newHeight);
+        } else {
+          height.setValue(OPEN_HEIGHT - PEEK_HEIGHT + gestureState.dy);
+        }
       }
     };
   };
@@ -241,8 +250,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.away_grey,
   },
   scrollView: {
-    marginLeft: 25,
-    marginRight: 25,
+    marginLeft: 5,
+    marginRight: 5,
     flex: 1,
   },
 });
