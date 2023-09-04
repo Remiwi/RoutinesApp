@@ -12,12 +12,13 @@ import {
   PanResponderGestureState,
   TouchableNativeFeedback,
 } from "react-native";
+import { TaskContextProvider, useTaskContext } from "./TaskContext";
 import { useDatabase } from "../../database";
 import { colors } from "../../variables";
 import { getToday, getDaysBack } from "../../date";
 
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
-import DragUpMenuModal from "../../components/DragUpMenuModal/DragUpMenuModal";
+import TaskInfoModal from "./TaskInfoModal";
 
 const CIRCLE_EMPTY = require("../../assets/icons/circle_empty.png");
 const CIRCLE_HALF = require("../../assets/icons/circle_half.png");
@@ -33,22 +34,16 @@ const HIDE_DURATION = 300;
 const HIDE_ON_SET = false;
 
 type TaskBubbleProps = {
-  taskName: string;
-  id: number;
   index: number;
   activeDay: number;
-  entries: any[];
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   onDragFinished: (startIndex: number, endIndex: number) => void;
   onChange: () => void;
 };
 
 export default function TaskBubble({
-  taskName,
   index,
-  id,
   activeDay,
-  entries,
   setScrollEnabled,
   onDragFinished,
   onChange,
@@ -75,10 +70,7 @@ export default function TaskBubble({
       contentContainerStyleSelected={{ zIndex: 1 }}
     >
       <SlideableBubble
-        taskName={taskName}
-        id={id}
         activeDay={activeDay}
-        entries={entries}
         startDragRef={startDragRef}
         cancelDragRef={cancelDragRef}
         dragOngoingRef={dragOngoingRef}
@@ -96,10 +88,7 @@ export default function TaskBubble({
 // It's annoying but it's what works.
 
 type SlideableBubbleProps = {
-  taskName: string;
-  id: number;
   activeDay: number;
-  entries: any[];
   startDragRef: React.MutableRefObject<() => void>;
   cancelDragRef: React.MutableRefObject<() => void>;
   dragOngoingRef: React.MutableRefObject<boolean>;
@@ -109,10 +98,7 @@ type SlideableBubbleProps = {
 };
 
 function SlideableBubble({
-  taskName,
-  id,
   activeDay,
-  entries,
   startDragRef,
   cancelDragRef,
   dragOngoingRef,
@@ -122,6 +108,8 @@ function SlideableBubble({
 }: SlideableBubbleProps) {
   // DB
   const db = useDatabase();
+  // Task Context
+  const taskCtx = useTaskContext();
   // Sliding
   const slideOffset = useRef(new Animated.Value(0)).current;
   const slideEnabled = useRef(true);
@@ -147,7 +135,7 @@ function SlideableBubble({
     db.transaction((tx) => {
       tx.executeSql(`UPDATE tasks SET hidden = ? WHERE id = ?;`, [
         getToday(),
-        id,
+        taskCtx.id,
       ]);
     });
     onChange();
@@ -155,13 +143,7 @@ function SlideableBubble({
 
   const setEntry = (date: number, value: number) => {
     // Update in the DB
-    db.transaction((tx) => {
-      tx.executeSql(
-        `INSERT OR REPLACE INTO entries (task_id, date, value) VALUES (?, ?, ?);`,
-        [id, date, value]
-      );
-    });
-    // Update here too so the UI updates immediately
+    taskCtx.changeEntry(date, value);
     // TODO
     // Close or hide the task, depending on the user's settings
     if (!HIDE_ON_SET) {
@@ -284,16 +266,14 @@ function SlideableBubble({
 
   return (
     <>
-      <DragUpMenuModal
+      <TaskInfoModal
         visible={infoModalVisible}
         onClose={() => {
           setInfoModalVisible(false);
           setDragStylesEnabled(false);
         }}
         changeOpenStateRef={infoChangeOpenStateRef}
-      >
-        {}
-      </DragUpMenuModal>
+      />
       <View
         style={{ flex: 1 }}
         onLayout={(e) => (taskLengthRef.current = e.nativeEvent.layout.width)}
@@ -372,14 +352,11 @@ function SlideableBubble({
             }}
           >
             <View style={styles.taskContent}>
-              <Text style={styles.taskName}>{taskName}</Text>
+              <Text style={styles.taskName}>{taskCtx.name}</Text>
               <View style={styles.entriesContainer}>
                 {Array.from({ length: 7 }, (_, i) => {
                   const date = getDaysBack(i);
-                  const entry = entries.filter(
-                    (entry) => entry.date === date
-                  )[0];
-                  const entryValue = entry !== undefined ? entry.value : 0;
+                  const entryValue = taskCtx.entries.get(date) ?? 0;
                   return <Entry entryValue={entryValue} key={date} />;
                 })}
               </View>

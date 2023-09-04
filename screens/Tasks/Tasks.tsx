@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Vibration } from "react-native";
 import { useDatabase } from "../../database";
+import { TaskContextProvider } from "./TaskContext";
 import { getToday, getDaysBack } from "../../date";
 import { colors } from "../../variables";
 
@@ -207,17 +208,20 @@ export default function Tasks({ route, navigation }: any) {
         >
           {taskData.map((task: any, index: number) => {
             return (
-              <TaskBubble
-                taskName={task.name}
+              <TaskContextProvider
+                routine_id={-1}
                 id={task.id}
-                index={index}
-                activeDay={activeDay}
-                entries={task.entries}
-                setScrollEnabled={setScrollEnabled}
-                onDragFinished={moveBubbles}
-                onChange={updateTaskData}
+                name={task.name}
                 key={task.id}
-              />
+              >
+                <TaskBubble
+                  index={index}
+                  activeDay={activeDay}
+                  setScrollEnabled={setScrollEnabled}
+                  onDragFinished={moveBubbles}
+                  onChange={updateTaskData}
+                />
+              </TaskContextProvider>
             );
           })}
         </DragAndDropScrollView>
