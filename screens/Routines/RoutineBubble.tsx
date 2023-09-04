@@ -15,7 +15,8 @@ import { getToday } from "../../date";
 
 import TextInputModal from "../../components/TextInputModal/TextInputModal";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
-import { Button, ExtraButton } from "./RoutineBubbleButtons";
+import Button from "./RoutineBubbleButtons";
+import ExtraButton from "../../components/MenuButton/MenuButton";
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
 
 const OPEN_ICON = require("../../assets/icons/chevron_right.png");
@@ -234,7 +235,7 @@ export default function RoutineBubble({
                 label={"Delete"}
                 icon={require("../../assets/icons/trash.png")}
                 onPress={() => setDeleteModalVisible(true)}
-              ></ExtraButton>
+              />
             </View>
           )
         }
