@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Vibration } from "react-native";
 import { useDatabase } from "../../database";
 import { TaskContextProvider } from "./TaskContext";
-import { getToday, getDaysBack } from "../../date";
+import JustDate from "../../JustDate";
 import { colors } from "../../variables";
 
 import Title from "../../components/Title/Title";
@@ -21,7 +21,7 @@ export default function Tasks({ route, navigation }: any) {
   // DOM State
   const [taskData, setTaskData] = useState<any[]>([]);
   // Date
-  const [activeDay, setActiveDay] = useState<number>(getToday());
+  const [activeDay, setActiveDay] = useState<JustDate>(JustDate.today());
   const activeDayRef = useRef(activeDay);
   // Modals
   const [addModalVisible, setAddModalVisible] = useState<boolean>(false);
@@ -32,7 +32,7 @@ export default function Tasks({ route, navigation }: any) {
       (tx) => {
         tx.executeSql(
           `SELECT * FROM tasks WHERE routine_id = ? AND hidden != ? ORDER BY position ASC;`,
-          [routine_id, getToday()],
+          [routine_id, JustDate.today().toInt()],
           (_, { rows: { _array } }) => {
             const updated_tasks = _array;
 
@@ -47,7 +47,11 @@ export default function Tasks({ route, navigation }: any) {
                 )
               ORDER BY date DESC;
             `,
-              [getDaysBack(7), routine_id, getToday()],
+              [
+                JustDate.today().shiftDays(-7).toInt(),
+                routine_id,
+                JustDate.today().toInt(),
+              ],
               (_, { rows: { _array } }) => {
                 updated_tasks.forEach((task: any) => {
                   task.entries = _array.filter(
@@ -191,10 +195,10 @@ export default function Tasks({ route, navigation }: any) {
             {Array.from({ length: 7 }, (_, i) => (
               <Day
                 days_back={i}
-                active={activeDay === getDaysBack(i)}
+                active={activeDay === JustDate.today().shiftDays(-i)}
                 onLongPress={() => {
                   Vibration.vibrate(100);
-                  setActiveDay(getDaysBack(i));
+                  setActiveDay(JustDate.today().shiftDays(-i));
                 }}
                 key={i}
               />

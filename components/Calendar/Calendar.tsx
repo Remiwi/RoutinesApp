@@ -8,7 +8,8 @@ import {
 import { useTaskContext } from "../../screens/Tasks/TaskContext";
 import { colors } from "../../variables";
 
-import { intToDateUTC, getToday, getIntDate, intToDateLocal } from "../../date";
+import JustDate from "../../JustDate";
+import { BottomTabBarHeightCallbackContext } from "@react-navigation/bottom-tabs";
 
 const [FULL, HALF, NONE] = [2, 1, 0];
 
@@ -17,17 +18,15 @@ const SQUIRCLE_HALF = require("../../assets/icons/squircle_half.png");
 const SQUIRCLE_FULL = require("../../assets/icons/squircle_full.png");
 
 type CalendarProps = {
-  month: number;
-  year: number;
+  date: JustDate;
 
   editing: number;
   editingEnabled?: boolean;
-  onEdit?: (date: number, value: number) => void;
+  onEdit?: (date: JustDate, value: number) => void;
 };
 
 export default function Calendar({
-  month,
-  year,
+  date,
   editing,
   editingEnabled,
   onEdit,
@@ -36,27 +35,19 @@ export default function Calendar({
 
   if (editingEnabled === undefined) editingEnabled = false;
 
-  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30][month];
-  const firstOfMonthInt = getIntDate(new Date(year, month, 1));
-  const firstDay = intToDateUTC(firstOfMonthInt).getDay();
-
+  const month = date.getMonth();
+  const start = date.shiftToMonthStart().shiftToWeekStart();
   const boxData: {
-    date: number;
+    date: JustDate;
     visible: boolean;
-  }[] = [];
-  for (let i = -firstDay; i < 7 * 6 - firstDay; i++) {
-    if (i < 0 || i > daysInMonth - 1)
-      boxData.push({
-        date: -1,
-        visible: false,
-      });
-    else {
-      boxData.push({
-        date: firstOfMonthInt + i,
-        visible: true,
-      });
+  }[] = JustDate.getAllDaysBetween(start, start.shiftDays(7 * 6)).map(
+    (date) => {
+      return {
+        date: date,
+        visible: date.getMonth() === month,
+      };
     }
-  }
+  );
 
   return (
     <View style={styles.calendar_row_container}>
@@ -72,17 +63,17 @@ export default function Calendar({
       {Array.from({ length: 6 }, (_, i) => (
         <View style={styles.calendar_row} key={i}>
           {boxData.slice(i * 7, (i + 1) * 7).map((box, idx) => {
-            const val = taskCtx.entries.get(box.date) ?? NONE;
+            const val = taskCtx.getEntry(box.date);
             return (
               <CalendarBox
-                date={box.date !== -1 ? box.date : 0}
+                date={box.date}
                 visible={box.visible}
                 value={val}
                 onPress={() => {
                   if (
                     !editingEnabled ||
                     onEdit === undefined ||
-                    box.date > getToday()
+                    box.date.isAfter(JustDate.today())
                   )
                     return;
                   onEdit(box.date, editing);
@@ -100,7 +91,7 @@ export default function Calendar({
 }
 
 type CalendarBoxProps = {
-  date: number;
+  date: JustDate;
   value: number;
   onPress?: () => void;
   visible?: boolean;
@@ -126,7 +117,7 @@ function CalendarBox({
   if (iconTint === undefined) iconTint = colors.away_grey;
   if (textColor === undefined) textColor = colors.grey;
 
-  const text = intToDateLocal(date).getDate().toString();
+  const text = date.getDay().toString();
 
   return (
     <TouchableWithoutFeedback onPress={onPress}>

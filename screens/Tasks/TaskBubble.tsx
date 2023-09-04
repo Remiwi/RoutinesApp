@@ -15,7 +15,7 @@ import {
 import { TaskContextProvider, useTaskContext } from "./TaskContext";
 import { useDatabase } from "../../database";
 import { colors } from "../../variables";
-import { getToday, getDaysBack } from "../../date";
+import JustDate from "../../JustDate";
 
 import { DragAndDropItem } from "../../components/DragAndDrop/DragAndDrop";
 import TaskInfoModal from "./TaskInfoModal";
@@ -35,7 +35,7 @@ const HIDE_ON_SET = false;
 
 type TaskBubbleProps = {
   index: number;
-  activeDay: number;
+  activeDay: JustDate;
   setScrollEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   onDragFinished: (startIndex: number, endIndex: number) => void;
   onChange: () => void;
@@ -88,7 +88,7 @@ export default function TaskBubble({
 // It's annoying but it's what works.
 
 type SlideableBubbleProps = {
-  activeDay: number;
+  activeDay: JustDate;
   startDragRef: React.MutableRefObject<() => void>;
   cancelDragRef: React.MutableRefObject<() => void>;
   dragOngoingRef: React.MutableRefObject<boolean>;
@@ -134,14 +134,14 @@ function SlideableBubble({
   const hideTask = () => {
     db.transaction((tx) => {
       tx.executeSql(`UPDATE tasks SET hidden = ? WHERE id = ?;`, [
-        getToday(),
+        JustDate.today().toInt(),
         taskCtx.id,
       ]);
     });
     onChange();
   };
 
-  const setEntry = (date: number, value: number) => {
+  const setEntry = (date: JustDate, value: number) => {
     // Update in the DB
     taskCtx.changeEntry(date, value);
     // TODO
@@ -355,9 +355,9 @@ function SlideableBubble({
               <Text style={styles.taskName}>{taskCtx.name}</Text>
               <View style={styles.entriesContainer}>
                 {Array.from({ length: 7 }, (_, i) => {
-                  const date = getDaysBack(i);
-                  const entryValue = taskCtx.entries.get(date) ?? 0;
-                  return <Entry entryValue={entryValue} key={date} />;
+                  const date = JustDate.today().shiftDays(-i);
+                  const entryValue = taskCtx.getEntry(date);
+                  return <Entry entryValue={entryValue} key={date.toInt()} />;
                 })}
               </View>
             </View>

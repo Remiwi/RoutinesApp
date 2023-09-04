@@ -7,7 +7,7 @@ import {
   TouchableNativeFeedback,
 } from "react-native";
 import { colors } from "../../variables";
-import { getToday, intToDateLocal } from "../../date";
+import JustDate from "../../JustDate";
 import { useTaskContext } from "./TaskContext";
 
 import DragUpMenuModal from "../../components/DragUpMenuModal/DragUpMenuModal";
@@ -48,14 +48,11 @@ export default function TaskInfo({
 }: TaskInfoProps) {
   const taskCtx = useTaskContext();
   const [selectedCalendarButton, setSelectedCalendarButton] = useState(NONE);
-  const [calendarMonth, setCalendarMonth] = useState(
-    intToDateLocal(getToday()).getMonth()
-  );
-  const [calendarYear, setCalendarYear] = useState(
-    intToDateLocal(getToday()).getFullYear()
+  const [calendarDate, setCalendarDate] = useState(
+    JustDate.today().shiftToMonthStart()
   );
 
-  const handleEditCalEntry = (date: number, value: number) => {
+  const handleEditCalEntry = (date: JustDate, value: number) => {
     taskCtx.changeEntry(date, value);
   };
 
@@ -81,17 +78,9 @@ export default function TaskInfo({
         />
       </View>
       <View style={styles.calendarContainer}>
-        <CalendarMonthSelector
-          month={calendarMonth}
-          year={calendarYear}
-          onMonthChange={(year, month) => {
-            setCalendarMonth(month);
-            setCalendarYear(year);
-          }}
-        />
+        <CalendarMonthSelector date={calendarDate} setDate={setCalendarDate} />
         <Calendar
-          month={calendarMonth}
-          year={calendarYear}
+          date={calendarDate}
           editing={selectedCalendarButton}
           editingEnabled={selectedCalendarButton !== NONE}
           onEdit={handleEditCalEntry}
@@ -138,43 +127,17 @@ export default function TaskInfo({
 }
 
 type CalendarMonthSelectorProps = {
-  month: number;
-  year: number;
-  onMonthChange: (year: number, month: number) => void;
+  date: JustDate;
+  setDate: (date: JustDate) => void;
 };
 
-function CalendarMonthSelector({
-  month,
-  year,
-  onMonthChange,
-}: CalendarMonthSelectorProps) {
-  const monthName = [
-    "January",
-    "Febuary",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ][month];
-
+function CalendarMonthSelector({ date, setDate }: CalendarMonthSelectorProps) {
   return (
     <View style={styles.calendarMonthSelector}>
       <View style={{ borderRadius: 500000 }}>
         <TouchableNativeFeedback
           onPress={() => {
-            let newMonth = month - 1;
-            let newYear = year;
-            if (newMonth < 0) {
-              newMonth = 11;
-              newYear--;
-            }
-            onMonthChange(newYear, newMonth);
+            setDate(date.shiftToMonthStart().shiftMonths(-1));
           }}
         >
           <View style={styles.calendarMonthSelectorButton}>
@@ -186,18 +149,12 @@ function CalendarMonthSelector({
         </TouchableNativeFeedback>
       </View>
       <Text style={styles.calendarMonthSelectorText}>
-        {monthName + " " + year.toString()}
+        {date.getMonthName() + " " + date.getYear().toString()}
       </Text>
       <View style={{ borderRadius: 500000 }}>
         <TouchableNativeFeedback
           onPress={() => {
-            let newMonth = month + 1;
-            let newYear = year;
-            if (newMonth > 11) {
-              newMonth = 0;
-              newYear++;
-            }
-            onMonthChange(newYear, newMonth);
+            setDate(date.shiftToMonthStart().shiftMonths(1));
           }}
         >
           <View style={styles.calendarMonthSelectorButton}>

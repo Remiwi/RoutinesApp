@@ -1,14 +1,14 @@
 import { useState, useEffect, useContext, createContext } from "react";
 import { useDatabase } from "../../database";
-import { intToDateLocal, getToday } from "../../date";
+import JustDate from "../../JustDate";
 
 type TaskData = {
   routine_id: number;
   id: number;
   name: string;
-  entries: Map<number, number>;
   updateEntries: () => void;
-  changeEntry: (date: number, value: number) => void;
+  changeEntry: (date: JustDate, value: number) => void;
+  getEntry: (date: JustDate) => number;
 };
 
 const TaskContext = createContext<TaskData | null>(null);
@@ -18,18 +18,21 @@ type TaskContextProviderProps = {
   id: number;
   name: string;
 
-  initialEntries?: Map<number, number>;
+  initialEntries?: Map<JustDate, number>;
 
   children: React.ReactNode;
 };
 
 export function TaskContextProvider(props: TaskContextProviderProps) {
   const db = useDatabase();
-
-  const initialEntries =
-    props.initialEntries === undefined ? new Map() : props.initialEntries;
-  const [entries, setEntries] = useState<Map<number, number>>(initialEntries);
   const [dummy, setDummy] = useState(false);
+
+  const initEntries: Map<number, number> = new Map();
+  if (props.initialEntries !== undefined) {
+    for (const [date, value] of props.initialEntries.entries())
+      initEntries.set(date.toInt(), value);
+  }
+  const [entries, setEntries] = useState<Map<number, number>>(initEntries);
 
   const updateEntries = () =>
     db.transaction((tx) => {
@@ -54,14 +57,14 @@ export function TaskContextProvider(props: TaskContextProviderProps) {
     if (props.initialEntries === undefined) updateEntries();
   }, []);
 
-  const changeEntry = (date: number, value: number) => {
+  const changeEntry = (date: JustDate, value: number) => {
     db.transaction((tx) => {
       tx.executeSql(
         `
         INSERT OR REPLACE INTO entries (task_id, date, value)
         VALUES (?, ?, ?)
       `,
-        [props.id, date, value],
+        [props.id, date.toInt(), value],
         undefined,
         (_, error) => {
           console.log(error);
@@ -70,9 +73,11 @@ export function TaskContextProvider(props: TaskContextProviderProps) {
       );
     });
 
-    entries.set(date, value);
+    entries.set(date.toInt(), value);
     setDummy(!dummy);
   };
+
+  const getEntry = (date: JustDate) => entries.get(date.toInt()) ?? 0;
 
   return (
     <TaskContext.Provider
@@ -81,9 +86,9 @@ export function TaskContextProvider(props: TaskContextProviderProps) {
         id: props.id,
         name: props.name,
 
-        entries: entries,
         updateEntries: updateEntries,
         changeEntry: changeEntry,
+        getEntry: getEntry,
       }}
     >
       {props.children}
